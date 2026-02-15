@@ -59,10 +59,18 @@ const MainBanner = styled.div`
     max-height: 600px; /* 배너 높이 제한 */
     object-fit: cover; /* 비율 유지하며 꽉 채우기 */
   }
+
+  @media (max-width: 640px) {
+    margin-bottom: 36px;
+  }
 `;
 
 const ContentContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px; /* 좌우 여백 */
+
+  @media (max-width: 640px) {
+    padding: 0 14px;
+  }
 `;

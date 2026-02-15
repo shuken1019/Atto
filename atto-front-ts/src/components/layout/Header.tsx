@@ -49,6 +49,15 @@ const HeaderWrapper = styled.header`
   top: 0;
   background-color: #F6F4EF;
   z-index: 100;
+  border-bottom: 1px solid rgba(26, 26, 26, 0.08);
+
+  @media (max-width: 900px) {
+    padding: 16px 20px;
+  }
+
+  @media (max-width: 640px) {
+    padding: 12px 14px;
+  }
 `;
 
 const Nav = styled.nav`
@@ -68,6 +77,22 @@ const Nav = styled.nav`
   .right-menu {
     justify-content: flex-end;
   }
+
+  @media (max-width: 900px) {
+    .left-menu, .right-menu {
+      gap: 16px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    row-gap: 12px;
+
+    .left-menu, .right-menu {
+      flex: 1 1 50%;
+      gap: 12px;
+    }
+  }
 `;
 
 const MenuLink = styled(Link)`
@@ -79,6 +104,11 @@ const MenuLink = styled(Link)`
   transition: opacity 0.2s;
   
   &:hover { opacity: 0.5; }
+
+  @media (max-width: 640px) {
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
 `;
 
 const IconButton = styled(Link)`
@@ -96,6 +126,13 @@ const IconButton = styled(Link)`
 
 const LogoContainer = styled(Link)`
   text-align: center;
+
+  @media (max-width: 640px) {
+    order: -1;
+    flex: 1 1 100%;
+    display: flex;
+    justify-content: center;
+  }
 `;
 
 const LogoText = styled.h1`
@@ -108,4 +145,14 @@ const LogoText = styled.h1`
   font-family: 'Playfair Display', serif;
   color: #1A1A1A;
   line-height: 1;
+
+  @media (max-width: 900px) {
+    font-size: 20px;
+    padding: 7px 20px;
+  }
+
+  @media (max-width: 640px) {
+    font-size: 18px;
+    padding: 6px 18px;
+  }
 `;

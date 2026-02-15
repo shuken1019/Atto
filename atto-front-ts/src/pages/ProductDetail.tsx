@@ -147,8 +147,8 @@ const Container = styled.div`
 
   @media (max-width: 768px) {
     flex-direction: column;
-    padding: 40px 20px;
-    gap: 40px;
+    padding: 26px 14px 60px;
+    gap: 26px;
   }
 `;
 
@@ -174,6 +174,10 @@ const InfoSection = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
+
+  @media (max-width: 768px) {
+    justify-content: flex-start;
+  }
 `;
 
 const CategoryLabel = styled.span`
@@ -190,6 +194,11 @@ const ProductName = styled.h1`
   margin-bottom: 20px;
   font-family: 'Playfair Display', serif;
   color: #1a1a1a;
+
+  @media (max-width: 768px) {
+    font-size: 28px;
+    margin-bottom: 14px;
+  }
 `;
 
 const Price = styled.p`
@@ -198,6 +207,10 @@ const Price = styled.p`
   color: #333;
   margin-bottom: 30px;
   font-family: 'Noto Sans KR', sans-serif;
+
+  @media (max-width: 768px) {
+    margin-bottom: 18px;
+  }
 `;
 
 const Description = styled.p`
@@ -205,16 +218,30 @@ const Description = styled.p`
   line-height: 1.8;
   color: #555;
   margin-bottom: 30px;
+
+  @media (max-width: 768px) {
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
 `;
 
 const Divider = styled.hr`
   border: none;
   border-top: 1px solid #e0e0e0;
   margin-bottom: 30px;
+
+  @media (max-width: 768px) {
+    margin-bottom: 20px;
+  }
 `;
 
 const OptionsWrapper = styled.div`
   margin-bottom: 40px;
+
+  @media (max-width: 768px) {
+    margin-bottom: 24px;
+  }
 `;
 
 const OptionGroup = styled.div`
@@ -264,6 +291,7 @@ const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
 const SizeGrid = styled.div`
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 `;
 
 const SizeButton = styled.button<{ selected: boolean }>`
@@ -280,12 +308,25 @@ const SizeButton = styled.button<{ selected: boolean }>`
   &:hover {
     border-color: #333;
   }
+
+  @media (max-width: 768px) {
+    min-width: 44px;
+    height: 44px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
   gap: 12px;
   margin-bottom: 40px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    margin-bottom: 28px;
+    gap: 10px;
+  }
 `;
 
 const AddToCartBtn = styled.button`
@@ -303,6 +344,11 @@ const AddToCartBtn = styled.button`
   &:hover {
     background-color: #000;
   }
+
+  @media (max-width: 768px) {
+    height: 52px;
+    font-size: 14px;
+  }
 `;
 
 const BuyNowBtn = styled.button`
@@ -319,6 +365,11 @@ const BuyNowBtn = styled.button`
 
   &:hover {
     background-color: #f5f5f5;
+  }
+
+  @media (max-width: 768px) {
+    height: 52px;
+    font-size: 14px;
   }
 `;
 

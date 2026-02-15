@@ -42,6 +42,10 @@ const FooterContainer = styled.footer`
   padding: 60px 0 20px;
   color: #555;
   margin-top: auto;
+
+  @media (max-width: 640px) {
+    padding: 42px 0 16px;
+  }
 `;
 
 const FooterInner = styled.div`
@@ -52,6 +56,12 @@ const FooterInner = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 40px;
   margin-bottom: 40px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-bottom: 28px;
+  }
 `;
 
 const FooterSection = styled.div`

@@ -46,8 +46,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
         <LikeButton onClick={(e) => e.stopPropagation()}> {/* 하트 누를땐 이동 안 하게 막음 */}
           <HeartIcon />
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-
         </LikeButton>
       </Info>
     </Card>
@@ -63,6 +61,10 @@ const Card = styled.div`
   flex-direction: column;
   gap: 12px;
   cursor: pointer;
+
+  @media (max-width: 640px) {
+    gap: 10px;
+  }
 `;
 
 const ImageWrapper = styled.div`
@@ -97,19 +99,28 @@ const Name = styled.h3`
   margin-bottom: 4px;
   font-family: 'Noto Sans KR', sans-serif;
   color: #333;
+
+  @media (max-width: 640px) {
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
 `;
 
 const Price = styled.p`
   font-size: 14px;
   font-weight: 600;
   color: #1A1A1A;
+
+  @media (max-width: 640px) {
+    font-size: 13px;
+  }
 `;
 
 const LikeButton = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 6px;
   color: #333;
   opacity: 0.7;
   display: flex;

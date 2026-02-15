@@ -40,6 +40,10 @@ export default ProductSection;
 
 const SectionContainer = styled.section`
   margin-bottom: 80px;
+
+  @media (max-width: 640px) {
+    margin-bottom: 52px;
+  }
 `;
 
 const SectionHeader = styled.div`
@@ -53,6 +57,14 @@ const SectionHeader = styled.div`
     font-weight: 400;
     color: #1a1a1a;
     font-family: serif;
+  }
+
+  @media (max-width: 640px) {
+    margin-bottom: 16px;
+
+    h2 {
+      font-size: 24px;
+    }
   }
 `;
 
@@ -73,7 +85,17 @@ const ProductGrid = styled.div`
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px 14px;
+  }
+
   @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 520px) {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 `;

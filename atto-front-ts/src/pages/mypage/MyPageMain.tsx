@@ -3,6 +3,12 @@ import styled from 'styled-components';
 import { NavLink, Outlet } from 'react-router-dom';
 
 const MyPageMain: React.FC = () => {
+  const handleWithdraw = () => {
+    const confirmed = window.confirm('정말 회원탈퇴 하시겠습니까?');
+    if (!confirmed) return;
+    alert('회원탈퇴 요청이 접수되었습니다.');
+  };
+
   return (
     <Container>
       <HeaderArea>
@@ -18,6 +24,9 @@ const MyPageMain: React.FC = () => {
           <MenuLink to="/mypage/shipping">배송지 관리</MenuLink>
           <MenuLink to="/mypage/orders">주문/결제 내역</MenuLink>
           <LogoutButton>로그아웃</LogoutButton>
+          <WithdrawButton type="button" onClick={handleWithdraw}>
+            회원탈퇴
+          </WithdrawButton>
         </Sidebar>
 
         {/* 오른쪽 컨텐츠 영역 (Outlet 부분에 하위 페이지가 나옴) */}
@@ -37,4 +46,5 @@ const Layout = styled.div` display: flex; gap: 60px; @media (max-width: 768px) {
 const Sidebar = styled.nav` width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; `;
 const MenuLink = styled(NavLink)` text-decoration: none; color: #888; font-size: 15px; padding: 12px 0; border-bottom: 1px solid transparent; transition: all 0.2s; &.active { color: #1a1a1a; font-weight: 600; border-bottom-color: #1a1a1a; } &:hover { color: #1a1a1a; } `;
 const LogoutButton = styled.button` text-align: left; background: none; border: none; color: #999; font-size: 14px; margin-top: 30px; cursor: pointer; padding: 0; &:hover { text-decoration: underline; } `;
+const WithdrawButton = styled.button` text-align: left; background: none; border: none; color: #c44c4c; font-size: 14px; margin-top: 8px; cursor: pointer; padding: 0; &:hover { text-decoration: underline; color: #b03838; } `;
 const Content = styled.div` flex: 1; `;

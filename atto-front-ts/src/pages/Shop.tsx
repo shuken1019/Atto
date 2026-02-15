@@ -122,6 +122,10 @@ const ShopContainer = styled.div`
   max-width: 1400px;
   margin: 0 auto;
   padding: 40px 20px 100px;
+
+  @media (max-width: 640px) {
+    padding: 26px 14px 70px;
+  }
 `;
 
 const PageHeader = styled.div`
@@ -136,6 +140,19 @@ const PageHeader = styled.div`
   p {
     color: #666;
     font-size: 15px;
+  }
+
+  @media (max-width: 640px) {
+    margin-bottom: 34px;
+
+    h2 {
+      font-size: 30px;
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 14px;
+    }
   }
 `;
 
@@ -168,6 +185,29 @@ const Sidebar = styled.aside`
   li {
     margin-bottom: 12px;
   }
+
+  @media (max-width: 768px) {
+    width: 100%;
+
+    h3 {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      font-size: 16px;
+    }
+
+    ul {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    li {
+      margin-bottom: 0;
+      flex: 0 0 auto;
+    }
+  }
 `;
 
 const CategoryButton = styled.button<{ active: boolean }>`
@@ -183,6 +223,14 @@ const CategoryButton = styled.button<{ active: boolean }>`
 
   &:hover {
     color: #333;
+  }
+
+  @media (max-width: 768px) {
+    border: 1px solid ${(props) => (props.active ? '#333' : '#d5d5d5')};
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 `;
 
@@ -201,6 +249,13 @@ const SortBar = styled.div`
   span {
     font-size: 14px;
     color: #666;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 20px;
   }
 `;
 
@@ -234,6 +289,11 @@ const ProductGrid = styled.div`
     grid-template-columns: repeat(2, 1fr);
   }
   @media (max-width: 480px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 22px 12px;
+  }
+
+  @media (max-width: 390px) {
     grid-template-columns: 1fr;
   }
 `;
