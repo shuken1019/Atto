@@ -1,0 +1,252 @@
+import React, { useState } from 'react';
+import styled from 'styled-components';
+import { Link, useNavigate } from 'react-router-dom';
+
+const Signup: React.FC = () => {
+  const navigate = useNavigate();
+  
+  // 1. 상태 관리: 요청하신 필드 모두 추가
+  const [formData, setFormData] = useState({
+    name: '',
+    username: '', // 아이디
+    password: '',
+    confirmPassword: '',
+    phone: '',
+    email: '',
+    address: '',       // 기본 주소
+    detailAddress: ''  // 상세 주소
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (formData.password !== formData.confirmPassword) {
+      alert('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    // TODO: 백엔드로 데이터 전송
+    console.log('회원가입 데이터:', formData);
+    
+    alert(`${formData.name}님, 회원가입이 완료되었습니다!`);
+    navigate('/login');
+  };
+
+  return (
+    <Container>
+      <FormWrapper>
+        <Title>CREATE ACCOUNT</Title>
+        <form onSubmit={handleSubmit}>
+          
+          {/* 1. 이름 */}
+          <InputGroup>
+            <Label>Name</Label>
+            <Input 
+              type="text" 
+              name="name"
+              placeholder="이름을 입력해주세요"
+              value={formData.name}
+              onChange={handleChange}
+              required 
+            />
+          </InputGroup>
+
+          {/* 2. 아이디 */}
+          <InputGroup>
+            <Label>ID</Label>
+            <Input 
+              type="text" 
+              name="username"
+              placeholder="아이디를 입력해주세요"
+              value={formData.username}
+              onChange={handleChange}
+              required 
+            />
+          </InputGroup>
+
+          {/* 3. 비밀번호 & 확인 */}
+          <InputGroup>
+            <Label>Password</Label>
+            <Input 
+              type="password" 
+              name="password"
+              placeholder="비밀번호를 입력해주세요"
+              value={formData.password}
+              onChange={handleChange}
+              required 
+            />
+            <Input 
+              type="password" 
+              name="confirmPassword"
+              placeholder="비밀번호 확인"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              style={{ marginTop: '10px' }} // 간격 추가
+              required 
+            />
+          </InputGroup>
+
+          {/* 4. 핸드폰 번호 */}
+          <InputGroup>
+            <Label>Phone</Label>
+            <Input 
+              type="tel" 
+              name="phone"
+              placeholder="010-0000-0000"
+              value={formData.phone}
+              onChange={handleChange}
+              required 
+            />
+          </InputGroup>
+
+          {/* 5. 이메일 */}
+          <InputGroup>
+            <Label>Email</Label>
+            <Input 
+              type="email" 
+              name="email"
+              placeholder="example@atto.com"
+              value={formData.email}
+              onChange={handleChange}
+              required 
+            />
+          </InputGroup>
+
+          {/* 6. 배송지 (주소 + 상세주소) */}
+          <InputGroup>
+            <Label>Shipping Address</Label>
+            <Input 
+              type="text" 
+              name="address"
+              placeholder="기본 주소를 입력해주세요"
+              value={formData.address}
+              onChange={handleChange}
+              required 
+            />
+            <Input 
+              type="text" 
+              name="detailAddress"
+              placeholder="상세 주소 (동, 호수 등)"
+              value={formData.detailAddress}
+              onChange={handleChange}
+              style={{ marginTop: '10px' }}
+            />
+          </InputGroup>
+
+          <Button type="submit">SIGN UP</Button>
+        </form>
+
+        <LoginLink>
+          Already have an account? <Link to="/login">Log in</Link>
+        </LoginLink>
+      </FormWrapper>
+    </Container>
+  );
+};
+
+export default Signup;
+
+// ---------- Styled Components ----------
+
+const Container = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 20px;
+  min-height: 80vh; /* 화면 높이에 맞춰 중앙 정렬 */
+`;
+
+const FormWrapper = styled.div`
+  width: 100%;
+  max-width: 420px; /* 조금 더 넓게 */
+  text-align: center;
+`;
+
+const Title = styled.h2`
+  font-size: 32px;
+  margin-bottom: 50px;
+  font-family: 'Playfair Display', serif;
+  letter-spacing: 2px;
+  color: #1a1a1a;
+`;
+
+const InputGroup = styled.div`
+  margin-bottom: 28px;
+  text-align: left;
+`;
+
+const Label = styled.label`
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  border-bottom: 1px solid #ddd;
+  background: transparent;
+  font-size: 15px;
+  color: #333;
+  outline: none;
+  transition: border-color 0.3s;
+  border-radius: 0;
+
+  &:focus {
+    border-bottom-color: #1a1a1a;
+  }
+  
+  &::placeholder {
+    color: #ccc;
+    font-size: 14px;
+  }
+`;
+
+const Button = styled.button`
+  width: 100%;
+  padding: 18px;
+  background-color: #1a1a1a;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  margin-top: 30px;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: #444;
+  }
+`;
+
+const LoginLink = styled.div`
+  margin-top: 24px;
+  font-size: 14px;
+  color: #666;
+
+  a {
+    color: #1a1a1a;
+    font-weight: 600;
+    margin-left: 8px;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+    text-decoration: none;
+
+    &:hover {
+      border-bottom-color: #1a1a1a;
+    }
+  }
+`;
