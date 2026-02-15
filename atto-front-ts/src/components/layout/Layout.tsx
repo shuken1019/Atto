@@ -1,6 +1,7 @@
 // src/components/layout/Layout.tsx (이 코드가 정답입니다!)
 
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Header from './Header';
 import Footer from './Footer';
@@ -12,11 +13,14 @@ interface LayoutProps {
 
 // ⭐️ 중요: React.FC<LayoutProps> 타입을 사용하고, children을 props로 받아야 합니다! ⭐️
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   return (
     <LayoutContainer>
-      <Header />
+      {!isAdminRoute && <Header />}
       <MainContent>{children}</MainContent>
-      <Footer />
+      {!isAdminRoute && <Footer />}
     </LayoutContainer>
   );
 };

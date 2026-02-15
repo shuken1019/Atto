@@ -1,6 +1,6 @@
 // src/App.tsx 전체를 이 코드로 바꾸세요
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { createGlobalStyle } from 'styled-components';
 import Layout from './components/layout/Layout';
 
@@ -21,6 +21,32 @@ import OrderList from './pages/mypage/OrderList';
 import OrderDetail from './pages/mypage/OrderDetail';
 import ExchangeRequest from './pages/mypage/ExchangeRequest';
 import RefundRequest from './pages/mypage/RefundRequest';
+import AdminLayout from './pages/admin/AdminLayout';
+import UserManagement from './pages/admin/UserManagement';
+import Dashboard from './pages/admin/Dashboard';
+import ProductUpload from './pages/admin/ProductUpload';
+import ProductManagement from './pages/admin/ProductManagement';
+import OrderManagement from './pages/admin/OrderManagement';
+import BannerManagement from './pages/admin/BannerManagement';
+
+const isAdminUser = () => {
+  const raw = localStorage.getItem('atto_auth');
+  if (!raw) return false;
+
+  try {
+    const parsed = JSON.parse(raw) as { role?: string };
+    return parsed.role === 'admin';
+  } catch {
+    return false;
+  }
+};
+
+const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  if (!isAdminUser()) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
 
 const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Noto+Sans+KR:wght@300;400;500&display=swap');
@@ -54,6 +80,23 @@ const App: React.FC = () => {
             <Route path="orders/:orderNo" element={<OrderDetail />} />
             <Route path="orders/:orderNo/exchange" element={<ExchangeRequest />} />
             <Route path="orders/:orderNo/refund" element={<RefundRequest />} />
+          </Route>
+
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="products" element={<ProductManagement />} />
+            <Route path="upload" element={<ProductUpload />} />
+            <Route path="orders" element={<OrderManagement />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="banners" element={<BannerManagement />} />
           </Route>
         </Routes>
       </Layout>

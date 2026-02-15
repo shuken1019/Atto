@@ -1,41 +1,34 @@
-﻿// src/pages/Login.tsx
+// src/pages/Login.tsx
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const [loginId, setLoginId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const ADMIN_IDS = new Set(['admin', 'admin@atto.com', 'soo1234']);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    // TODO: 나중에 백엔드 API와 연결할 부분
+    console.log('Login:', email, password);
 
-    try {
-      const response = await fetch('http://127.0.0.1:4000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ loginId, password }),
-      });
+    const normalizedId = email.trim().toLowerCase();
+    const isAdmin = ADMIN_IDS.has(normalizedId);
+    const role = isAdmin ? 'admin' : 'user';
+    localStorage.setItem(
+      'atto_auth',
+      JSON.stringify({
+        email,
+        role,
+      }),
+    );
+    window.dispatchEvent(new Event('auth-changed'));
 
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        alert(result.message ?? '로그인에 실패했습니다.');
-        return;
-      }
-
-      localStorage.setItem('attoUser', JSON.stringify(result.user));
-      alert(`${result.user?.name ?? loginId}님 환영합니다.`);
-      navigate('/');
-    } catch {
-      alert('서버 연결에 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
+    // 임시 로그인 성공 처리
+    alert(`환영합니다, ${email}님!`);
+    navigate(isAdmin ? '/admin' : '/'); // admin은 관리자 대시보드로 이동
   };
 
   return (
@@ -44,34 +37,32 @@ const Login: React.FC = () => {
         <Title>LOGIN</Title>
         <form onSubmit={handleSubmit}>
           <InputGroup>
-            <Label>ID</Label>
-            <Input
-              type="text"
-              placeholder="아이디를 입력해주세요"
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
+            <Label>Email / ID</Label>
+            <Input 
+              type="text" 
+              placeholder="이메일 또는 아이디를 입력해주세요" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </InputGroup>
           <InputGroup>
             <Label>Password</Label>
-            <Input
-              type="password"
+            <Input 
+              type="password" 
               placeholder="비밀번호를 입력해주세요"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
+              required 
             />
           </InputGroup>
-
-          <Button type="submit" disabled={loading}>
-            {loading ? 'SIGNING IN...' : 'SIGN IN'}
-          </Button>
+          
+          <Button type="submit">SIGN IN</Button>
         </form>
 
         <Links>
           <StyledLink to="/signup">Create Account</StyledLink>
-          <StyledLink to="/find-account">Forgot ID/Password?</StyledLink>
+           <StyledLink to="/find-account">Forgot ID/Password?</StyledLink>
         </Links>
       </FormWrapper>
     </Container>
@@ -129,12 +120,12 @@ const Input = styled.input`
   color: #333;
   outline: none;
   transition: border-color 0.3s;
-  border-radius: 0;
+  border-radius: 0; /* 모바일 사파리 기본 스타일 제거 */
 
   &:focus {
     border-bottom-color: #1a1a1a;
   }
-
+  
   &::placeholder {
     color: #ccc;
   }
@@ -155,11 +146,6 @@ const Button = styled.button`
 
   &:hover {
     background-color: #333;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 `;
 

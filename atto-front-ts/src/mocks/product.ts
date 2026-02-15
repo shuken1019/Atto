@@ -2,11 +2,37 @@
 
 import type { IProduct } from '../types/product';
 
-// 🚨 에러의 원인이던 이미지 import 코드를 모두 지웠습니다!
-// import img1 from ... (삭제됨)
+const makeRepresentativeImages = (seed: string) => [
+  `https://picsum.photos/seed/${seed}-1/900/1200`,
+  `https://picsum.photos/seed/${seed}-2/900/1200`,
+  `https://picsum.photos/seed/${seed}-3/900/1200`,
+];
 
-// 대신 이 가짜 주소를 쓰면, ProductCard가 알아서 예쁜 SVG 그림을 보여줄 겁니다.
-const PLACEHOLDER_URL = "https://via.placeholder.com/450x600"; 
+const makeSizeGuide = () => [
+  { label: 'S', shoulder: '44', chest: '51', length: '67' },
+  { label: 'M', shoulder: '46', chest: '54', length: '69' },
+  { label: 'L', shoulder: '48', chest: '57', length: '71' },
+];
+
+const makeKeyInfo = () => ['소재: Linen 70% / Cotton 30%', '제조국: 대한민국', '세탁: 드라이클리닝 권장'];
+
+const createBaseProduct = (seed: string) => {
+  const representativeImages = makeRepresentativeImages(seed);
+  return {
+    thumbnailImage: representativeImages[0],
+    representativeImages,
+    detailImages: representativeImages,
+    detailMedia: [
+      { type: 'image' as const, url: `https://picsum.photos/seed/${seed}-detail-1/1200/1600` },
+      { type: 'image' as const, url: `https://picsum.photos/seed/${seed}-detail-2/1200/1600` },
+      { type: 'video' as const, url: 'https://www.w3schools.com/html/mov_bbb.mp4' },
+    ],
+    detailDescription:
+      '자연스러운 실루엣과 편안한 착용감을 기반으로 제작된 아이템입니다. 다양한 스타일에 매칭이 쉽고, 일상에서 손이 자주 가는 균형감 있는 핏을 제공합니다.',
+    sizeGuide: makeSizeGuide(),
+    keyInfo: makeKeyInfo(),
+  };
+};
 
 export const mockProducts: IProduct[] = [
   {
@@ -14,8 +40,7 @@ export const mockProducts: IProduct[] = [
     name: "Relaxed Leas Cardigan",
     price: 70000,
     category: 'outer',
-    thumbnailImage: PLACEHOLDER_URL, // ⭐️ 변수(img1) 대신 문자열 사용
-    detailImages: [],
+    ...createBaseProduct('cardigan'),
     description: "편안한 린넨 가디건입니다.",
     variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M"], stock: 10 }],
     isNew: false
@@ -25,8 +50,7 @@ export const mockProducts: IProduct[] = [
     name: "Charcali Linen Jacket",
     price: 75000,
     category: 'outer',
-    thumbnailImage: PLACEHOLDER_URL,
-    detailImages: [],
+    ...createBaseProduct('jacket'),
     description: "시원한 차콜 자켓입니다.",
     variants: [{ color: "Charcoal", colorCode: "#36454F", sizes: ["M", "L"], stock: 5 }],
     isNew: true
@@ -36,8 +60,7 @@ export const mockProducts: IProduct[] = [
     name: "Relaxed Tate-shirt",
     price: 42000,
     category: 'top',
-    thumbnailImage: PLACEHOLDER_URL,
-    detailImages: [],
+    ...createBaseProduct('tshirt'),
     description: "기본 린넨 티셔츠입니다.",
     variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M", "L"], stock: 20 }],
     isNew: false
@@ -47,8 +70,7 @@ export const mockProducts: IProduct[] = [
     name: "Wide Cotton Pants",
     price: 68000,
     category: 'bottom',
-    thumbnailImage: PLACEHOLDER_URL,
-    detailImages: [],
+    ...createBaseProduct('pants'),
     description: "와이드 핏 코튼 팬츠입니다.",
     variants: [],
     isNew: false
@@ -58,8 +80,7 @@ export const mockProducts: IProduct[] = [
     name: "Silver Loop Ring",
     price: 35000,
     category: 'acc',
-    thumbnailImage: PLACEHOLDER_URL,
-    detailImages: [],
+    ...createBaseProduct('ring'),
     description: "심플한 실버 링입니다.",
     variants: [],
     isNew: true
@@ -69,8 +90,7 @@ export const mockProducts: IProduct[] = [
     name: "Daily Linen Shirts",
     price: 55000,
     category: 'top',
-    thumbnailImage: PLACEHOLDER_URL,
-    detailImages: [],
+    ...createBaseProduct('shirt'),
     description: "데일리로 입기 좋은 셔츠입니다.",
     variants: [],
     isNew: false
