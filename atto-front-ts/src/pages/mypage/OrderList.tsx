@@ -1,53 +1,125 @@
-import React from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
 
-type OrderSummary = {
-  orderNo: string;
-  date: string;
-  status: string;
-  productName: string;
-  price: number;
+type StoredUser = {
+  userId: number;
 };
 
-const ORDERS: OrderSummary[] = [
-  {
-    orderNo: 'ORD-20240215-001',
-    date: '2024.02.15',
-    status: '배송중',
-    productName: 'Relaxed Leas Cardigan 외 1건',
-    price: 145000,
-  },
-  {
-    orderNo: 'ORD-20240120-882',
-    date: '2024.01.20',
-    status: '배송완료',
-    productName: 'Wide Cotton Pants',
-    price: 68000,
-  },
-];
+type OrderRow = {
+  orderId: number;
+  userId: number;
+  paymentId: number | null;
+  addressId: number | null;
+  totalAmount: number;
+  status: 'ORDERED' | 'PREPARING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED' | 'EXCHANGED';
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'REFUNDED' | null;
+  created_at: string;
+};
+
+const statusLabel = (order: OrderRow): string => {
+  if (order.status === 'ORDERED') {
+    if (order.paymentStatus === 'COMPLETED') return '결제완료';
+    return '입금대기';
+  }
+
+  switch (order.status) {
+    case 'PREPARING':
+      return '배송준비중';
+    case 'SHIPPED':
+      return '배송중';
+    case 'DELIVERED':
+      return '배송완료';
+    case 'CANCELLED':
+      return '주문취소';
+    case 'REFUNDED':
+      return '환불완료';
+    case 'EXCHANGED':
+      return '교환처리';
+    default:
+      return order.status;
+  }
+};
+
+const formatDate = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd}`;
+};
 
 const OrderList: React.FC = () => {
+  const user = useMemo<StoredUser | null>(() => {
+    try {
+      const raw = localStorage.getItem('attoUser');
+      if (!raw) return null;
+      return JSON.parse(raw) as StoredUser;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user?.userId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://127.0.0.1:4000/api/users/${user.userId}/orders`);
+        const result = await response.json();
+
+        if (!response.ok || !result.ok) {
+          alert(result.message ?? '주문 내역을 불러오지 못했습니다.');
+          return;
+        }
+
+        setOrders(Array.isArray(result.orders) ? result.orders : []);
+      } catch {
+        alert('서버 연결에 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [user?.userId]);
+
+  if (!user?.userId) {
+    return <Container>로그인 후 이용해주세요.</Container>;
+  }
+
   return (
     <Container>
       <Title>Order History</Title>
 
-      {ORDERS.map((order) => (
-        <OrderItem key={order.orderNo}>
-          <OrderHeader>
-            <Date>{order.date}</Date>
-            <OrderNo>{order.orderNo}</OrderNo>
-            <Status className={order.status === '배송완료' ? 'done' : ''}>{order.status}</Status>
-          </OrderHeader>
-          <ProductInfo>
-            <Info>
-              <ProdName>{order.productName}</ProdName>
-              <Price>₩ {order.price.toLocaleString()}</Price>
-            </Info>
-          </ProductInfo>
-          <DetailLink to={`/mypage/orders/${order.orderNo}`}>상세조회</DetailLink>
-        </OrderItem>
-      ))}
+      {loading ? (
+        <EmptyText>불러오는 중...</EmptyText>
+      ) : orders.length === 0 ? (
+        <EmptyText>주문 내역이 없습니다.</EmptyText>
+      ) : (
+        orders.map((order) => (
+          <OrderItem key={order.orderId}>
+            <OrderHeader>
+              <OrderDate>{formatDate(order.created_at)}</OrderDate>
+              <OrderNo>ORD-{String(order.orderId).padStart(6, '0')}</OrderNo>
+              <Status className={order.status === 'DELIVERED' ? 'done' : ''}>{statusLabel(order)}</Status>
+            </OrderHeader>
+            <ProductInfo>
+              <Info>
+                <ProdName>주문번호 #{order.orderId}</ProdName>
+                <Price>{order.totalAmount.toLocaleString()}원</Price>
+              </Info>
+            </ProductInfo>
+            <Button type="button">상세보기</Button>
+          </OrderItem>
+        ))
+      )}
     </Container>
   );
 };
@@ -56,13 +128,11 @@ export default OrderList;
 
 const Container = styled.div`
   width: 100%;
-  font-family: 'Noto Sans KR', sans-serif;
 `;
 
 const Title = styled.h2`
   font-size: 24px;
-  font-family: 'Noto Sans KR', sans-serif;
-  font-weight: 500;
+  font-family: 'Playfair Display', serif;
   margin-bottom: 30px;
   border-bottom: 1px solid #ddd;
   padding-bottom: 15px;
@@ -78,10 +148,9 @@ const OrderHeader = styled.div`
   align-items: center;
   gap: 15px;
   margin-bottom: 15px;
-  flex-wrap: wrap;
 `;
 
-const Date = styled.span`
+const OrderDate = styled.span`
   font-weight: 600;
   color: #333;
 `;
@@ -122,18 +191,21 @@ const Price = styled.span`
   font-size: 14px;
 `;
 
-const DetailLink = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 92px;
+const Button = styled.button`
   padding: 8px 12px;
   font-size: 12px;
   background: #fff;
   border: 1px solid #ddd;
   color: #333;
+  cursor: pointer;
 
   &:hover {
     border-color: #333;
   }
+`;
+
+const EmptyText = styled.p`
+  color: #777;
+  font-size: 14px;
+  padding: 20px 0;
 `;

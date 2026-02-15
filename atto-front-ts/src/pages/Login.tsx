@@ -1,21 +1,41 @@
-// src/pages/Login.tsx
+﻿// src/pages/Login.tsx
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: 나중에 백엔드 API와 연결할 부분
-    console.log('Login:', email, password);
-    
-    // 임시 로그인 성공 처리
-    alert(`환영합니다, ${email}님!`);
-    navigate('/'); // 메인으로 이동
+    setLoading(true);
+
+    try {
+      const response = await fetch('http://127.0.0.1:4000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ loginId, password }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        alert(result.message ?? '로그인에 실패했습니다.');
+        return;
+      }
+
+      localStorage.setItem('attoUser', JSON.stringify(result.user));
+      alert(`${result.user?.name ?? loginId}님 환영합니다.`);
+      navigate('/');
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,32 +44,34 @@ const Login: React.FC = () => {
         <Title>LOGIN</Title>
         <form onSubmit={handleSubmit}>
           <InputGroup>
-            <Label>Email</Label>
-            <Input 
-              type="email" 
-              placeholder="이메일을 입력해주세요" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+            <Label>ID</Label>
+            <Input
+              type="text"
+              placeholder="아이디를 입력해주세요"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
               required
             />
           </InputGroup>
           <InputGroup>
             <Label>Password</Label>
-            <Input 
-              type="password" 
+            <Input
+              type="password"
               placeholder="비밀번호를 입력해주세요"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required 
+              required
             />
           </InputGroup>
-          
-          <Button type="submit">SIGN IN</Button>
+
+          <Button type="submit" disabled={loading}>
+            {loading ? 'SIGNING IN...' : 'SIGN IN'}
+          </Button>
         </form>
 
         <Links>
           <StyledLink to="/signup">Create Account</StyledLink>
-           <StyledLink to="/find-account">Forgot ID/Password?</StyledLink>
+          <StyledLink to="/find-account">Forgot ID/Password?</StyledLink>
         </Links>
       </FormWrapper>
     </Container>
@@ -107,12 +129,12 @@ const Input = styled.input`
   color: #333;
   outline: none;
   transition: border-color 0.3s;
-  border-radius: 0; /* 모바일 사파리 기본 스타일 제거 */
+  border-radius: 0;
 
   &:focus {
     border-bottom-color: #1a1a1a;
   }
-  
+
   &::placeholder {
     color: #ccc;
   }
@@ -133,6 +155,11 @@ const Button = styled.button`
 
   &:hover {
     background-color: #333;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 

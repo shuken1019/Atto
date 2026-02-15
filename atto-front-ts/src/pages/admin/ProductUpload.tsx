@@ -5,6 +5,11 @@ import styled from 'styled-components';
 
 const ProductUpload: React.FC = () => {
   const [images, setImages] = useState<File[]>([]);
+  const onImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+    setImages(Array.from(files));
+  };
 
   return (
     <AdminContainer>
@@ -15,8 +20,8 @@ const ProductUpload: React.FC = () => {
         <UploadSection>
           <Label>Product Images</Label>
           <ImagePlaceholder>
-            <span>+ Click to Upload Photos</span>
-            <input type="file" multiple style={{display:'none'}} />
+            <span>+ Click to Upload Photos {images.length > 0 ? `(${images.length})` : ''}</span>
+            <input type="file" multiple style={{display:'none'}} onChange={onImageChange} />
           </ImagePlaceholder>
           <HelperText>권장 사이즈: 900x1200 (3:4 비율)</HelperText>
         </UploadSection>
@@ -73,6 +78,7 @@ const AdminContainer = styled.div` padding: 40px; background: #fff; min-height: 
 const Title = styled.h2` font-family: 'Playfair Display', serif; font-size: 28px; margin-bottom: 40px; `;
 const FormGrid = styled.div` display: grid; grid-template-columns: 1fr 1.5fr; gap: 60px; `;
 const Label = styled.label` display: block; font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #333; `;
+const InputGroup = styled.div``;
 const ImagePlaceholder = styled.div` width: 100%; aspect-ratio: 3/4; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #f9f9f9; color: #888; &:hover { background: #f0f0f0; } `;
 const Input = styled.input` width: 100%; padding: 12px; border: 1px solid #ddd; margin-bottom: 20px; `;
 const TextArea = styled.textarea` width: 100%; padding: 12px; border: 1px solid #ddd; resize: none; `;

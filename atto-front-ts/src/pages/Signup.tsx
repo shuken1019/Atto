@@ -1,42 +1,72 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
-  
-  // 1. 상태 관리: 요청하신 필드 모두 추가
+  const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
-    username: '', // 아이디
+    username: '',
     password: '',
     confirmPassword: '',
     phone: '',
     email: '',
-    address: '',       // 기본 주소
-    detailAddress: ''  // 상세 주소
+    zipcode: '',
+    address: '',
+    detailAddress: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       alert('비밀번호가 일치하지 않습니다.');
       return;
     }
 
-    // TODO: 백엔드로 데이터 전송
-    console.log('회원가입 데이터:', formData);
-    
-    alert(`${formData.name}님, 회원가입이 완료되었습니다!`);
-    navigate('/login');
+    setLoading(true);
+
+    try {
+      const response = await fetch('http://127.0.0.1:4000/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: formData.username,
+          name: formData.name,
+          phone: formData.phone,
+          mail: formData.email,
+          password: formData.password,
+          recipientName: formData.name,
+          zipcode: formData.zipcode,
+          address1: formData.address,
+          address2: formData.detailAddress,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        alert(result.message ?? '회원가입에 실패했습니다.');
+        return;
+      }
+
+      alert(`${formData.name}님 회원가입이 완료되었습니다.`);
+      navigate('/login');
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,103 +74,107 @@ const Signup: React.FC = () => {
       <FormWrapper>
         <Title>CREATE ACCOUNT</Title>
         <form onSubmit={handleSubmit}>
-          
-          {/* 1. 이름 */}
           <InputGroup>
             <Label>Name</Label>
-            <Input 
-              type="text" 
+            <Input
+              type="text"
               name="name"
               placeholder="이름을 입력해주세요"
               value={formData.name}
               onChange={handleChange}
-              required 
+              required
             />
           </InputGroup>
 
-          {/* 2. 아이디 */}
           <InputGroup>
             <Label>ID</Label>
-            <Input 
-              type="text" 
+            <Input
+              type="text"
               name="username"
               placeholder="아이디를 입력해주세요"
               value={formData.username}
               onChange={handleChange}
-              required 
+              required
             />
           </InputGroup>
 
-          {/* 3. 비밀번호 & 확인 */}
           <InputGroup>
             <Label>Password</Label>
-            <Input 
-              type="password" 
+            <Input
+              type="password"
               name="password"
               placeholder="비밀번호를 입력해주세요"
               value={formData.password}
               onChange={handleChange}
-              required 
+              required
             />
-            <Input 
-              type="password" 
+            <Input
+              type="password"
               name="confirmPassword"
               placeholder="비밀번호 확인"
               value={formData.confirmPassword}
               onChange={handleChange}
-              style={{ marginTop: '10px' }} // 간격 추가
-              required 
+              style={{ marginTop: '10px' }}
+              required
             />
           </InputGroup>
 
-          {/* 4. 핸드폰 번호 */}
           <InputGroup>
             <Label>Phone</Label>
-            <Input 
-              type="tel" 
+            <Input
+              type="tel"
               name="phone"
               placeholder="010-0000-0000"
               value={formData.phone}
               onChange={handleChange}
-              required 
+              required
             />
           </InputGroup>
 
-          {/* 5. 이메일 */}
           <InputGroup>
             <Label>Email</Label>
-            <Input 
-              type="email" 
+            <Input
+              type="email"
               name="email"
               placeholder="example@atto.com"
               value={formData.email}
               onChange={handleChange}
-              required 
+              required
             />
           </InputGroup>
 
-          {/* 6. 배송지 (주소 + 상세주소) */}
           <InputGroup>
             <Label>Shipping Address</Label>
-            <Input 
-              type="text" 
+            <Input
+              type="text"
+              name="zipcode"
+              placeholder="우편번호"
+              value={formData.zipcode}
+              onChange={handleChange}
+              required
+            />
+            <Input
+              type="text"
               name="address"
               placeholder="기본 주소를 입력해주세요"
               value={formData.address}
               onChange={handleChange}
-              required 
+              style={{ marginTop: '10px' }}
+              required
             />
-            <Input 
-              type="text" 
+            <Input
+              type="text"
               name="detailAddress"
-              placeholder="상세 주소 (동, 호수 등)"
+              placeholder="상세 주소"
               value={formData.detailAddress}
               onChange={handleChange}
               style={{ marginTop: '10px' }}
             />
           </InputGroup>
 
-          <Button type="submit">SIGN UP</Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? 'SIGNING UP...' : 'SIGN UP'}
+          </Button>
         </form>
 
         <LoginLink>
@@ -153,19 +187,17 @@ const Signup: React.FC = () => {
 
 export default Signup;
 
-// ---------- Styled Components ----------
-
 const Container = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 80px 20px;
-  min-height: 80vh; /* 화면 높이에 맞춰 중앙 정렬 */
+  min-height: 80vh;
 `;
 
 const FormWrapper = styled.div`
   width: 100%;
-  max-width: 420px; /* 조금 더 넓게 */
+  max-width: 420px;
   text-align: center;
 `;
 
@@ -207,7 +239,7 @@ const Input = styled.input`
   &:focus {
     border-bottom-color: #1a1a1a;
   }
-  
+
   &::placeholder {
     color: #ccc;
     font-size: 14px;
@@ -229,6 +261,11 @@ const Button = styled.button`
 
   &:hover {
     background-color: #444;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 
