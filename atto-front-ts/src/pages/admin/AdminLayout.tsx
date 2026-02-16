@@ -26,6 +26,7 @@ const AdminLayout: React.FC = () => {
           <MenuLink to="/admin/products">상품 관리</MenuLink>
           <MenuLink to="/admin/upload">상품 업로드</MenuLink>
           <MenuLink to="/admin/orders">주문 및 배송</MenuLink>
+          <MenuLink to="/admin/sales">매출 관리</MenuLink>
           <MenuLink to="/admin/users">사용자 관리</MenuLink>
           <MenuLink to="/admin/banners">배너 관리</MenuLink>
         </NavMenu>

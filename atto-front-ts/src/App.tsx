@@ -33,6 +33,7 @@ import OrderCreate from './pages/admin/OrderCreate';
 import OrderCreatedCheck from './pages/admin/OrderCreatedCheck';
 import OrderCreatedDetail from './pages/admin/OrderCreatedDetail';
 import BannerManagement from './pages/admin/BannerManagement';
+import SalesManagement from './pages/admin/SalesManagement';
 
 const isAdminUser = () => {
   const raw = localStorage.getItem('atto_auth');
@@ -105,6 +106,7 @@ const App: React.FC = () => {
             <Route path="orders/create" element={<OrderCreate />} />
             <Route path="orders/created" element={<OrderCreatedCheck />} />
             <Route path="orders/created/:orderNo" element={<OrderCreatedDetail />} />
+            <Route path="sales" element={<SalesManagement />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="banners" element={<BannerManagement />} />
           </Route>
