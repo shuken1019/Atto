@@ -68,7 +68,7 @@ const Shop: React.FC = () => {
             {categories.map((cat) => (
               <li key={cat.id}>
                 <CategoryButton 
-                  active={selectedCategory === cat.id}
+                  $active={selectedCategory === cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
                 >
                   {cat.label}
@@ -84,14 +84,14 @@ const Shop: React.FC = () => {
             <span>Total {filteredProducts.length} items</span>
             <SortButtons>
               <SortButton 
-                active={sortOption === 'newest'} 
+                $active={sortOption === 'newest'} 
                 onClick={() => setSortOption('newest')}
               >
                 최신순
               </SortButton>
               <Divider>|</Divider>
               <SortButton 
-                active={sortOption === 'popular'} 
+                $active={sortOption === 'popular'} 
                 onClick={() => setSortOption('popular')}
               >
                 인기순
@@ -210,13 +210,13 @@ const Sidebar = styled.aside`
   }
 `;
 
-const CategoryButton = styled.button<{ active: boolean }>`
+const CategoryButton = styled.button<{ $active: boolean }>`
   background: none;
   border: none;
   font-size: 15px;
   cursor: pointer;
-  color: ${(props) => (props.active ? '#000' : '#888')};
-  font-weight: ${(props) => (props.active ? '600' : '400')};
+  color: ${(props) => (props.$active ? '#000' : '#888')};
+  font-weight: ${(props) => (props.$active ? '600' : '400')};
   padding: 0;
   transition: color 0.2s;
   font-family: 'Noto Sans KR', sans-serif;
@@ -226,7 +226,7 @@ const CategoryButton = styled.button<{ active: boolean }>`
   }
 
   @media (max-width: 768px) {
-    border: 1px solid ${(props) => (props.active ? '#333' : '#d5d5d5')};
+    border: 1px solid ${(props) => (props.$active ? '#333' : '#d5d5d5')};
     border-radius: 999px;
     padding: 8px 14px;
     font-size: 13px;
@@ -265,13 +265,13 @@ const SortButtons = styled.div`
   gap: 10px;
 `;
 
-const SortButton = styled.button<{ active: boolean }>`
+const SortButton = styled.button<{ $active: boolean }>`
   background: none;
   border: none;
   font-size: 14px;
   cursor: pointer;
-  color: ${(props) => (props.active ? '#000' : '#999')};
-  font-weight: ${(props) => (props.active ? '600' : '400')};
+  color: ${(props) => (props.$active ? '#000' : '#999')};
+  font-weight: ${(props) => (props.$active ? '600' : '400')};
   padding: 0;
 `;
 

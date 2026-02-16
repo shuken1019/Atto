@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
+import { promises as fs } from "fs";
+import path from "path";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -25,6 +28,158 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+const CATEGORY_ID_FALLBACK = {
+  outer: 1,
+  top: 2,
+  bottom: 3,
+  acc: 4,
+};
+
+const PRODUCT_STATUS = new Set(["ON_SALE", "SOLD_OUT", "HIDDEN"]);
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://127.0.0.1:${port}`;
+
+const toIntOrNull = (value) => {
+  const n = Number(value);
+  if (!Number.isInteger(n)) return null;
+  return n;
+};
+const mimeToExt = (mimeType) => {
+  const mime = String(mimeType ?? "").toLowerCase();
+  if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/gif") return "gif";
+  return "bin";
+};
+
+const resolveCartTimestampColumns = async () => {
+  const [rows] = await pool.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS " +
+      "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cart' " +
+      "AND COLUMN_NAME IN ('createdAt', 'updatedAt', 'created_at', 'updated_at')"
+  );
+
+  const names = new Set((Array.isArray(rows) ? rows : []).map((row) => String(row.COLUMN_NAME)));
+
+  const createdCol = names.has("createdAt")
+    ? "createdAt"
+    : names.has("created_at")
+      ? "created_at"
+      : "createdAt";
+  const updatedCol = names.has("updatedAt")
+    ? "updatedAt"
+    : names.has("updated_at")
+      ? "updated_at"
+      : "updatedAt";
+
+  return { createdCol, updatedCol };
+};
+
+const ensureCartTable = async () => {
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS cart (" +
+      "cartId BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, " +
+      "userId BIGINT UNSIGNED NOT NULL, " +
+      "productId BIGINT UNSIGNED NOT NULL, " +
+      "colorId INT NOT NULL, " +
+      "sizeId INT NOT NULL, " +
+      "quantity INT NOT NULL DEFAULT 1, " +
+      "createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+      "updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+      "PRIMARY KEY (cartId), " +
+      "KEY idx_cart_userId (userId), " +
+      "KEY idx_cart_productId (productId), " +
+      "KEY idx_cart_option (userId, productId, colorId, sizeId), " +
+      "CONSTRAINT fk_cart_user FOREIGN KEY (userId) REFERENCES `user` (userId) ON DELETE CASCADE ON UPDATE CASCADE" +
+      ")"
+  );
+};
+
+const hasColorTable = async () => {
+  const [rows] = await pool.query(
+    "SELECT 1 AS ok FROM INFORMATION_SCHEMA.TABLES " +
+      "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'color' LIMIT 1"
+  );
+  return Array.isArray(rows) && rows.length > 0;
+};
+
+const resolveColorColumns = async () => {
+  const exists = await hasColorTable();
+  if (!exists) {
+    return { useJoin: false, hasName: false, hasCode: false };
+  }
+
+  const [rows] = await pool.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS " +
+      "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'color' " +
+      "AND COLUMN_NAME IN ('colorId', 'name', 'code')"
+  );
+  const names = new Set((Array.isArray(rows) ? rows : []).map((row) => String(row.COLUMN_NAME)));
+  const hasColorId = names.has("colorId");
+  const hasName = names.has("name");
+  const hasCode = names.has("code");
+
+  return {
+    useJoin: hasColorId && (hasName || hasCode),
+    hasName,
+    hasCode,
+  };
+};
+
+const saveThumbnailFromDataUrl = async (thumbnailDataUrl, thumbnailName) => {
+  const dataUrl = String(thumbnailDataUrl ?? "").trim();
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("invalid thumbnailDataUrl");
+  }
+
+  const mimeType = match[1];
+  const base64Data = match[2];
+  const extension = mimeToExt(mimeType);
+  const originalName = String(thumbnailName ?? "").trim();
+  const safeNamePart = originalName
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 40);
+  const fileName = `${Date.now()}-${safeNamePart || "thumb"}-${crypto.randomUUID()}.${extension}`;
+  const filePath = path.join(UPLOADS_DIR, fileName);
+
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  await fs.writeFile(filePath, Buffer.from(base64Data, "base64"));
+
+  return `${PUBLIC_BASE_URL}/uploads/${fileName}`;
+};
+
+const resolveCategoryId = async (conn, categoryIdOrName) => {
+  const categoryId = toIntOrNull(categoryIdOrName);
+  if (categoryId && categoryId > 0) return categoryId;
+
+  const key = String(categoryIdOrName ?? "")
+    .trim()
+    .toLowerCase();
+  if (!key) return null;
+
+  if (CATEGORY_ID_FALLBACK[key]) {
+    return CATEGORY_ID_FALLBACK[key];
+  }
+
+  try {
+    const [rows] = await conn.query(
+      "SELECT categoryId FROM category WHERE LOWER(name) = ? OR LOWER(slug) = ? LIMIT 1",
+      [key, key]
+    );
+    if (Array.isArray(rows) && rows.length > 0) {
+      return Number(rows[0].categoryId);
+    }
+  } catch (_error) {
+    return null;
+  }
+
+  return null;
+};
 
 app.get("/api/health", async (_req, res) => {
   try {
@@ -45,7 +200,7 @@ app.post("/api/auth/login", async (req, res) => {
 
   try {
     const [users] = await pool.query(
-      "SELECT userId, id, mail, password, name FROM `user` WHERE mail = ? OR id = ? LIMIT 1",
+      "SELECT userId, id, mail, password, name, COALESCE(role, 'USER') AS role FROM `user` WHERE mail = ? OR id = ? LIMIT 1",
       [account, account]
     );
 
@@ -69,6 +224,7 @@ app.post("/api/auth/login", async (req, res) => {
         id: user.id,
         email: user.mail,
         name: user.name,
+        role: String(user.role ?? "USER").toUpperCase(),
       },
     });
   } catch (error) {
@@ -88,6 +244,15 @@ app.post("/api/auth/signup", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
     const [duplicates] = await conn.query(
       "SELECT id, mail FROM `user` WHERE id = ? OR mail = ? LIMIT 1",
       [id, mail]
@@ -106,7 +271,7 @@ app.post("/api/auth/signup", async (req, res) => {
     const hashedPassword = await bcrypt.hash(String(password), 10);
 
     const [insertResult] = await conn.query(
-      "INSERT INTO `user` (id, name, phone, mail, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+      "INSERT INTO `user` (id, name, phone, mail, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'USER', NOW(), NOW())",
       [id, name, phone, mail, hashedPassword]
     );
 
@@ -202,6 +367,15 @@ app.put("/api/users/:userId/profile", async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
 
     const [users] = await conn.query(
       "SELECT userId, password FROM `user` WHERE userId = ? LIMIT 1",
@@ -311,6 +485,15 @@ app.post("/api/users/:userId/addresses", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
     const [userRows] = await conn.query("SELECT userId FROM `user` WHERE userId = ? LIMIT 1", [userId]);
     if (!Array.isArray(userRows) || userRows.length === 0) {
       await conn.rollback();
@@ -361,6 +544,15 @@ app.put("/api/users/:userId/addresses/:addressId", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
     const [existingRows] = await conn.query(
       "SELECT addressId FROM address WHERE userId = ? AND addressId = ? LIMIT 1",
       [userId, addressId]
@@ -406,6 +598,15 @@ app.patch("/api/users/:userId/addresses/:addressId/default", async (req, res) =>
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
     const [existingRows] = await conn.query(
       "SELECT addressId FROM address WHERE userId = ? AND addressId = ? LIMIT 1",
       [userId, addressId]
@@ -444,6 +645,15 @@ app.delete("/api/users/:userId/addresses/:addressId", async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
 
     const [rows] = await conn.query(
       "SELECT addressId, isDefault FROM address WHERE userId = ? AND addressId = ? LIMIT 1",
@@ -545,6 +755,359 @@ app.delete("/api/users/:userId/scraps/:productId", async (req, res) => {
     return res.json({ ok: true, message: "scrap removed" });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "scrap delete failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.get("/api/users/:userId/cart", async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId" });
+  }
+
+  try {
+    const { createdCol, updatedCol } = await resolveCartTimestampColumns();
+    const colorMeta = await resolveColorColumns();
+    const colorNameExpr = colorMeta.useJoin && colorMeta.hasName ? "co.name" : "NULL";
+    const colorCodeExpr = colorMeta.useJoin && colorMeta.hasCode ? "co.code" : "NULL";
+    const colorSelect = `${colorNameExpr} AS colorName, ${colorCodeExpr} AS colorCode, `;
+    const colorJoin = colorMeta.useJoin ? "LEFT JOIN color co ON co.colorId = c.colorId " : "";
+    const [rows] = await pool.query(
+      `SELECT c.cartId, c.userId, c.productId, c.colorId, c.sizeId, c.quantity, c.${createdCol} AS createdAt, c.${updatedCol} AS updatedAt, ` +
+        "p.name AS productName, p.price AS productPrice, p.thumbnail AS productThumbnail, " +
+        colorSelect +
+        "CASE c.sizeId WHEN 1 THEN 'S' WHEN 2 THEN 'M' WHEN 3 THEN 'L' ELSE CONCAT('SIZE-', c.sizeId) END AS sizeLabel " +
+        "FROM cart c " +
+        "JOIN product p ON p.productId = c.productId " +
+        colorJoin +
+        "WHERE c.userId = ? " +
+        `ORDER BY c.${updatedCol} DESC, c.cartId DESC`,
+      [userId]
+    );
+    return res.json({ ok: true, cartItems: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "cart list fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.post("/api/users/:userId/cart", async (req, res) => {
+  const userId = Number(req.params.userId);
+  const productId = Number(req.body?.productId);
+  const colorId = Number(req.body?.colorId);
+  const sizeId = Number(req.body?.sizeId);
+  const quantity = Number(req.body?.quantity ?? 1);
+
+  if (
+    !Number.isInteger(userId) ||
+    userId <= 0 ||
+    !Number.isInteger(productId) ||
+    productId <= 0 ||
+    !Number.isInteger(colorId) ||
+    colorId <= 0 ||
+    !Number.isInteger(sizeId) ||
+    sizeId <= 0 ||
+    !Number.isInteger(quantity) ||
+    quantity <= 0
+  ) {
+    return res.status(400).json({ ok: false, message: "invalid userId/productId/colorId/sizeId/quantity" });
+  }
+
+  let conn;
+  try {
+    const { createdCol, updatedCol } = await resolveCartTimestampColumns();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [existingRows] = await conn.query(
+      "SELECT cartId, quantity FROM cart WHERE userId = ? AND productId = ? AND colorId = ? AND sizeId = ? LIMIT 1",
+      [userId, productId, colorId, sizeId]
+    );
+
+    if (Array.isArray(existingRows) && existingRows.length > 0) {
+      const existing = existingRows[0];
+      const mergedQuantity = Number(existing.quantity ?? 0) + quantity;
+      await conn.query(
+        `UPDATE cart SET quantity = ?, ${updatedCol} = NOW() WHERE cartId = ?`,
+        [mergedQuantity, existing.cartId]
+      );
+      await conn.commit();
+      return res.json({ ok: true, cartId: existing.cartId, quantity: mergedQuantity, merged: true });
+    }
+
+    const [insertResult] = await conn.query(
+      `INSERT INTO cart (userId, productId, colorId, sizeId, quantity, ${createdCol}, ${updatedCol}) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+      [userId, productId, colorId, sizeId, quantity]
+    );
+
+    await conn.commit();
+    return res.status(201).json({ ok: true, cartId: insertResult.insertId, quantity, merged: false });
+  } catch (error) {
+    if (conn) {
+      await conn.rollback();
+    }
+    return res.status(500).json({ ok: false, message: "cart create failed", error: String(error?.message ?? error) });
+  } finally {
+    if (conn) {
+      conn.release();
+    }
+  }
+});
+
+app.patch("/api/users/:userId/cart/:cartId", async (req, res) => {
+  const userId = Number(req.params.userId);
+  const cartId = Number(req.params.cartId);
+  const quantity = Number(req.body?.quantity);
+
+  if (
+    !Number.isInteger(userId) ||
+    userId <= 0 ||
+    !Number.isInteger(cartId) ||
+    cartId <= 0 ||
+    !Number.isInteger(quantity) ||
+    quantity <= 0
+  ) {
+    return res.status(400).json({ ok: false, message: "invalid userId/cartId/quantity" });
+  }
+
+  try {
+    const { updatedCol } = await resolveCartTimestampColumns();
+    const [result] = await pool.query(
+      `UPDATE cart SET quantity = ?, ${updatedCol} = NOW() WHERE userId = ? AND cartId = ?`,
+      [quantity, userId, cartId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "cart item not found" });
+    }
+    return res.json({ ok: true, cartId, quantity });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "cart update failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.delete("/api/users/:userId/cart/:cartId", async (req, res) => {
+  const userId = Number(req.params.userId);
+  const cartId = Number(req.params.cartId);
+
+  if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(cartId) || cartId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId/cartId" });
+  }
+
+  try {
+    const [result] = await pool.query("DELETE FROM cart WHERE userId = ? AND cartId = ?", [userId, cartId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "cart item not found" });
+    }
+    return res.json({ ok: true, message: "cart item removed" });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "cart delete failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.get("/api/admin/products", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.created_at, " +
+        "COALESCE(SUM(pc.stock), 0) AS totalStock " +
+        "FROM product p " +
+        "LEFT JOIN product_color pc ON pc.productId = p.productId " +
+        "GROUP BY p.productId " +
+        "ORDER BY p.created_at DESC, p.productId DESC"
+    );
+    return res.json({ ok: true, products: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "product list fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.get("/api/admin/colors", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT colorId, name, code FROM color ORDER BY colorId ASC"
+    );
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      return res.json({ ok: true, colors: rows });
+    }
+
+    return res.json({
+      ok: true,
+      colors: [
+        { colorId: 1, name: "Black", code: "#222222" },
+        { colorId: 2, name: "Ivory", code: "#efe9de" },
+        { colorId: 3, name: "White", code: "#ffffff" },
+        { colorId: 4, name: "Gray", code: "#a5a5a5" },
+        { colorId: 5, name: "Navy", code: "#1f2c56" },
+      ],
+    });
+  } catch (_error) {
+    return res.json({
+      ok: true,
+      colors: [
+        { colorId: 1, name: "Black", code: "#222222" },
+        { colorId: 2, name: "Ivory", code: "#efe9de" },
+        { colorId: 3, name: "White", code: "#ffffff" },
+        { colorId: 4, name: "Gray", code: "#a5a5a5" },
+        { colorId: 5, name: "Navy", code: "#1f2c56" },
+      ],
+    });
+  }
+});
+
+app.get("/api/admin/products/:productId", async (req, res) => {
+  const productId = Number(req.params.productId);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid productId" });
+  }
+
+  try {
+    const [products] = await pool.query(
+      "SELECT productId, name, description, price, categoryId, status, thumbnail, created_at FROM product WHERE productId = ? LIMIT 1",
+      [productId]
+    );
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(404).json({ ok: false, message: "product not found" });
+    }
+
+    const [productColors] = await pool.query(
+      "SELECT productColorId, productId, colorId, stock FROM product_color WHERE productId = ? ORDER BY productColorId ASC",
+      [productId]
+    );
+    const [productOptions] = await pool.query(
+      "SELECT optionId, productId, colorId, sizeId, stock, additionalPrice FROM product_option WHERE productId = ? ORDER BY optionId ASC",
+      [productId]
+    );
+
+    return res.json({
+      ok: true,
+      product: products[0],
+      productColors,
+      productOptions,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "product detail fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.post("/api/admin/products", async (req, res) => {
+  const {
+    name,
+    description,
+    price,
+    categoryId,
+    category,
+    status,
+    thumbnail,
+    thumbnailDataUrl,
+    thumbnailName,
+    productColors,
+    productOptions,
+  } = req.body ?? {};
+
+  const safeName = String(name ?? "").trim();
+  const safeDescription = String(description ?? "").trim();
+  const safePrice = Number(price);
+  const safeStatus = String(status ?? "ON_SALE")
+    .trim()
+    .toUpperCase();
+  const safeThumbnail = String(thumbnail ?? "").trim();
+
+  if (!safeName) {
+    return res.status(400).json({ ok: false, message: "name required" });
+  }
+  if (!Number.isInteger(safePrice) || safePrice < 0) {
+    return res.status(400).json({ ok: false, message: "price must be non-negative integer" });
+  }
+  if (!PRODUCT_STATUS.has(safeStatus)) {
+    return res.status(400).json({ ok: false, message: "invalid status" });
+  }
+
+  const normalizedColors = Array.isArray(productColors) ? productColors : [];
+  const normalizedOptions = Array.isArray(productOptions) ? productOptions : [];
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    let finalThumbnail = safeThumbnail;
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
+    const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
+    if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "valid categoryId/category required" });
+    }
+
+    const [insertProductResult] = await conn.query(
+      "INSERT INTO product (name, description, price, categoryId, status, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail]
+    );
+    const newProductId = Number(insertProductResult.insertId);
+
+    for (const row of normalizedColors) {
+      const colorIdValue = toIntOrNull(row?.colorId);
+      const stockValue = toIntOrNull(row?.stock);
+
+      if (!colorIdValue || colorIdValue <= 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productColors[].colorId must be positive integer" });
+      }
+      if (stockValue === null || stockValue < 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productColors[].stock must be non-negative integer" });
+      }
+
+      await conn.query(
+        "INSERT INTO product_color (productId, colorId, stock) VALUES (?, ?, ?)",
+        [newProductId, colorIdValue, stockValue]
+      );
+    }
+
+    for (const row of normalizedOptions) {
+      const colorIdValue = toIntOrNull(row?.colorId);
+      const sizeIdValue = toIntOrNull(row?.sizeId);
+      const stockValue = toIntOrNull(row?.stock);
+      const additionalPriceValue = toIntOrNull(row?.additionalPrice ?? 0);
+
+      if (!colorIdValue || colorIdValue <= 0 || !sizeIdValue || sizeIdValue <= 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].colorId/sizeId must be positive integer" });
+      }
+      if (stockValue === null || stockValue < 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].stock must be non-negative integer" });
+      }
+      if (additionalPriceValue === null) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].additionalPrice must be integer" });
+      }
+
+      await conn.query(
+        "INSERT INTO product_option (productId, colorId, sizeId, stock, additionalPrice) VALUES (?, ?, ?, ?, ?)",
+        [newProductId, colorIdValue, sizeIdValue, stockValue, additionalPriceValue]
+      );
+    }
+
+    await conn.commit();
+    return res.status(201).json({
+      ok: true,
+      productId: newProductId,
+      message: "product created",
+    });
+  } catch (error) {
+    if (conn) {
+      await conn.rollback();
+    }
+    return res.status(500).json({ ok: false, message: "product create failed", error: String(error?.message ?? error) });
+  } finally {
+    if (conn) {
+      conn.release();
+    }
   }
 });
 
@@ -727,6 +1290,10 @@ autoAdvancePreparing().catch((error) => {
   console.error("autoAdvancePreparing failed:", error);
 });
 
+ensureCartTable().catch((error) => {
+  console.error("ensureCartTable failed:", error);
+});
+
 setInterval(() => {
   autoAdvancePreparing().catch((error) => {
     console.error("autoAdvancePreparing failed:", error);
@@ -736,4 +1303,9 @@ setInterval(() => {
 app.listen(port, () => {
   console.log(`Backend running on http://127.0.0.1:${port}`);
 });
+
+
+
+
+
 

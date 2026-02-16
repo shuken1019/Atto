@@ -9,6 +9,7 @@ const AdminLayout: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('atto_auth');
+    localStorage.removeItem('attoUser');
     window.dispatchEvent(new Event('auth-changed'));
     navigate('/');
   };

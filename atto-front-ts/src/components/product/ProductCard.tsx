@@ -1,28 +1,39 @@
-// src/components/product/ProductCard.tsx
-
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import type { IProduct } from '../../types/product';
-// 1. 여기서 가져왔으면...
 import { ProductImageSVG } from '../../components/common/Placeholders';
+import { addScrap, getScraps, removeScrap } from '../../services/scrapService';
+
+const SCRAP_CHANGED_EVENT = 'atto:scrap-changed';
+
+type ScrapChangedDetail = {
+  productId: number;
+  scrapped: boolean;
+};
+
+const emitScrapChanged = (detail: ScrapChangedDetail) => {
+  window.dispatchEvent(new CustomEvent<ScrapChangedDetail>(SCRAP_CHANGED_EVENT, { detail }));
+};
 
 const HeartIcon = ({ filled }: { filled: boolean }) => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
-    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
   </svg>
 );
 
 interface Props {
   product: IProduct;
   initialScrapped?: boolean;
+  onScrapChange?: (productId: number, scrapped: boolean) => void;
 }
 
-const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
+const ProductCard: React.FC<Props> = ({ product, initialScrapped = false, onScrapChange }) => {
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [isLiked, setIsLiked] = useState(initialScrapped);
+  const [pending, setPending] = useState(false);
 
   const goToDetail = () => {
     navigate(`/product/${product.id}`);
@@ -34,10 +45,7 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
   }, [product.representativeImages, product.thumbnailImage]);
 
   const currentImage = representativeImages[currentImageIndex] || product.thumbnailImage;
-  const isRealImage =
-    currentImage &&
-    currentImage.startsWith('http') &&
-    !currentImage.includes('via.placeholder');
+  const isRealImage = currentImage && currentImage.startsWith('http') && !currentImage.includes('via.placeholder');
 
   useEffect(() => {
     if (!isHovered || representativeImages.length <= 1) return;
@@ -49,6 +57,35 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
     return () => window.clearInterval(timer);
   }, [isHovered, representativeImages.length]);
 
+  useEffect(() => {
+    const loadScrapState = async () => {
+      if (initialScrapped) return;
+      try {
+        const scraps = await getScraps();
+        setIsLiked(scraps.some((item) => Number(item.productId) === Number(product.id)));
+      } catch {
+        // logged-out or network error: keep current state
+      }
+    };
+
+    loadScrapState();
+  }, [initialScrapped, product.id]);
+
+  useEffect(() => {
+    const onScrapChanged = (event: Event) => {
+      const custom = event as CustomEvent<ScrapChangedDetail>;
+      const detail = custom.detail;
+      if (!detail) return;
+      if (Number(detail.productId) !== Number(product.id)) return;
+      setIsLiked(Boolean(detail.scrapped));
+    };
+
+    window.addEventListener(SCRAP_CHANGED_EVENT, onScrapChanged);
+    return () => {
+      window.removeEventListener(SCRAP_CHANGED_EVENT, onScrapChanged);
+    };
+  }, [product.id]);
+
   const handleMouseEnter = () => {
     if (representativeImages.length <= 1) return;
     setIsHovered(true);
@@ -59,8 +96,33 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
     setCurrentImageIndex(0);
   };
 
+  const handleToggleScrap = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (pending) return;
+    setPending(true);
+
+    try {
+      if (isLiked) {
+        await removeScrap(product.id);
+        setIsLiked(false);
+        emitScrapChanged({ productId: product.id, scrapped: false });
+        onScrapChange?.(product.id, false);
+      } else {
+        await addScrap(product.id);
+        setIsLiked(true);
+        emitScrapChanged({ productId: product.id, scrapped: true });
+        onScrapChange?.(product.id, true);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '스크랩 처리에 실패했습니다.';
+      alert(message);
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
-     <Card onClick={goToDetail} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <Card onClick={goToDetail} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <ImageWrapper>
         {isRealImage ? (
           <img src={currentImage} alt={product.name} />
@@ -68,7 +130,7 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
           <ProductImageSVG type={product.category} />
         )}
       </ImageWrapper>
-      
+
       <Info>
         <div>
           <Name>{product.name}</Name>
@@ -77,10 +139,8 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
         <LikeButton
           type="button"
           $active={isLiked}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsLiked((prev) => !prev);
-          }}
+          onClick={handleToggleScrap}
+          disabled={pending}
           aria-label={isLiked ? '스크랩 해제' : '스크랩'}
         >
           <HeartIcon filled={isLiked} />
@@ -91,8 +151,6 @@ const ProductCard: React.FC<Props> = ({ product, initialScrapped = false }) => {
 };
 
 export default ProductCard;
-
-// ---------- Styled Components ----------
 
 const Card = styled.div`
   display: flex;
@@ -107,21 +165,23 @@ const Card = styled.div`
 
 const ImageWrapper = styled.div`
   width: 100%;
-  aspect-ratio: 3 / 4; /* 세로로 긴 비율 */
+  aspect-ratio: 3 / 4;
   overflow: hidden;
-  background-color: #f0f0f0; /* 로딩 전 배경색 */
+  background-color: #f0f0f0;
   position: relative;
-  
-  img, svg {
+
+  img,
+  svg {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform 0.3s ease;
     display: block;
   }
-  
-  &:hover img, &:hover svg {
-    transform: scale(1.03); /* 마우스 올리면 살짝 확대 */
+
+  &:hover img,
+  &:hover svg {
+    transform: scale(1.03);
   }
 `;
 
@@ -147,7 +207,7 @@ const Name = styled.h3`
 const Price = styled.p`
   font-size: 14px;
   font-weight: 600;
-  color: #1A1A1A;
+  color: #1a1a1a;
 
   @media (max-width: 640px) {
     font-size: 13px;
@@ -164,6 +224,13 @@ const LikeButton = styled.button<{ $active?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  
-  &:hover { opacity: 1; }
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 `;

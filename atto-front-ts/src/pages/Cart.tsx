@@ -1,76 +1,82 @@
-// src/pages/Cart.tsx
-
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
-import { mockProducts } from '../mocks/product';
-
-interface CartItemType {
-  id: number;
-  productId: number;
-  name: string;
-  price: number;
-  thumbnail: string;
-  color: string;
-  size: string;
-  quantity: number;
-}
+import { getCartItems, removeCartItem, updateCartItemQuantity, type CartItem } from '../services/cartService';
 
 const Cart: React.FC = () => {
-  const navigate = useNavigate(); // ⭐️ 결제 버튼에서 사용할 예정
+  const navigate = useNavigate();
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // ⭐️ 수정됨: useEffect를 없애고, useState 초기값으로 데이터를 바로 넣습니다.
-  // 이렇게 하면 불필요한 렌더링이 줄어들어 성능이 좋아집니다.
-  const [cartItems, setCartItems] = useState<CartItemType[]>([
-    {
-      id: 101,
-      productId: mockProducts[0].id,
-      name: mockProducts[0].name,
-      price: mockProducts[0].price,
-      thumbnail: mockProducts[0].thumbnailImage,
-      color: 'Beige',
-      size: 'M',
-      quantity: 1,
-    },
-    {
-      id: 102,
-      productId: mockProducts[1].id,
-      name: mockProducts[1].name,
-      price: mockProducts[1].price,
-      thumbnail: mockProducts[1].thumbnailImage,
-      color: 'Charcoal',
-      size: 'L',
-      quantity: 2,
-    },
-  ]);
-
-  // 수량 변경 핸들러
-  const handleQuantity = (id: number, type: 'plus' | 'minus') => {
-    setCartItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = type === 'plus' ? item.quantity + 1 : item.quantity - 1;
-        return { ...item, quantity: newQty < 1 ? 1 : newQty };
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const items = await getCartItems();
+        setCartItems(items);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '장바구니 조회 실패';
+        alert(message);
+      } finally {
+        setLoading(false);
       }
-      return item;
-    }));
+    };
+    load();
+  }, []);
+
+  const handleQuantity = (cartId: number, type: 'plus' | 'minus') => {
+    const current = cartItems.find((item) => item.cartId === cartId);
+    if (!current) return;
+
+    const newQty = type === 'plus' ? current.quantity + 1 : current.quantity - 1;
+    if (newQty < 1) return;
+
+    const previous = cartItems;
+    setCartItems((prev) => prev.map((item) => (item.cartId === cartId ? { ...item, quantity: newQty } : item)));
+
+    const run = async () => {
+      try {
+        await updateCartItemQuantity(cartId, newQty);
+      } catch (error) {
+        setCartItems(previous);
+        const message = error instanceof Error ? error.message : '수량 변경 실패';
+        alert(message);
+      }
+    };
+    run();
   };
 
-  // 삭제 핸들러
-  const handleRemove = (id: number) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const handleRemove = (cartId: number) => {
+    const previous = cartItems;
+    setCartItems((prev) => prev.filter((item) => item.cartId !== cartId));
+
+    const run = async () => {
+      try {
+        await removeCartItem(cartId);
+      } catch (error) {
+        setCartItems(previous);
+        const message = error instanceof Error ? error.message : '장바구니 삭제 실패';
+        alert(message);
+      }
+    };
+    run();
   };
 
-  // 결제 버튼 핸들러 (navigate 사용)
   const handleCheckout = () => {
-    alert('결제 기능은 준비 중입니다. 메인으로 이동합니다.');
-    // ⭐️ 여기서 navigate를 사용해서 에러 해결!
-    navigate('/'); 
+    alert('결제 기능은 다음 단계에서 연결합니다.');
+    navigate('/');
   };
 
-  // 금액 계산
-  const subTotal = cartItems.reduce((acc, cur) => acc + (cur.price * cur.quantity), 0);
+  const subTotal = cartItems.reduce((acc, cur) => acc + cur.productPrice * cur.quantity, 0);
   const shippingFee = subTotal > 100000 ? 0 : 3000;
   const total = subTotal + shippingFee;
+
+  if (loading) {
+    return (
+      <EmptyContainer>
+        <h2>Loading...</h2>
+      </EmptyContainer>
+    );
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -85,62 +91,67 @@ const Cart: React.FC = () => {
   return (
     <Container>
       <Title>SHOPPING CART</Title>
-      
+
       <CartLayout>
-        {/* 왼쪽: 상품 목록 */}
         <ItemsSection>
           <TableHeader>
             <span>Product</span>
             <span>Quantity</span>
             <span>Price</span>
           </TableHeader>
-          
+
           {cartItems.map((item) => (
-            <CartItem key={item.id}>
+            <CartItemRow key={item.cartId}>
               <ItemInfo>
-                <img src={item.thumbnail} alt={item.name} />
+                <img
+                  src={
+                    item.productThumbnail && item.productThumbnail.trim()
+                      ? item.productThumbnail
+                      : 'https://picsum.photos/seed/cart-placeholder/300/400'
+                  }
+                  alt={item.productName}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = 'https://picsum.photos/seed/cart-placeholder/300/400';
+                  }}
+                />
                 <div>
-                  <h4>{item.name}</h4>
-                  <p>Option: {item.color} / {item.size}</p>
-                  <RemoveBtn onClick={() => handleRemove(item.id)}>Remove</RemoveBtn>
+                  <h4>{item.productName}</h4>
+                  <p>
+                    Option: {item.colorName ?? `Color-${item.colorId}`} / {item.sizeLabel}
+                  </p>
+                  <RemoveBtn onClick={() => handleRemove(item.cartId)}>Remove</RemoveBtn>
                 </div>
               </ItemInfo>
-              
+
               <QuantityControl>
-                <button onClick={() => handleQuantity(item.id, 'minus')}>-</button>
+                <button onClick={() => handleQuantity(item.cartId, 'minus')}>-</button>
                 <span>{item.quantity}</span>
-                <button onClick={() => handleQuantity(item.id, 'plus')}>+</button>
+                <button onClick={() => handleQuantity(item.cartId, 'plus')}>+</button>
               </QuantityControl>
-              
-              <ItemPrice>
-                ₩ {(item.price * item.quantity).toLocaleString()}
-              </ItemPrice>
-            </CartItem>
+
+              <ItemPrice>₩{(item.productPrice * item.quantity).toLocaleString()}</ItemPrice>
+            </CartItemRow>
           ))}
         </ItemsSection>
 
-        {/* 오른쪽: 주문 요약 */}
         <SummarySection>
           <SummaryBox>
             <h3>Order Summary</h3>
             <SummaryRow>
               <span>Subtotal</span>
-              <span>₩ {subTotal.toLocaleString()}</span>
+              <span>₩{subTotal.toLocaleString()}</span>
             </SummaryRow>
             <SummaryRow>
               <span>Shipping</span>
-              <span>{shippingFee === 0 ? 'Free' : `₩ ${shippingFee.toLocaleString()}`}</span>
+              <span>{shippingFee === 0 ? 'Free' : `₩${shippingFee.toLocaleString()}`}</span>
             </SummaryRow>
             <Divider />
             <TotalRow>
               <span>Total</span>
-              <span>₩ {total.toLocaleString()}</span>
+              <span>₩{total.toLocaleString()}</span>
             </TotalRow>
-            
-            {/* ⭐️ 핸들러 연결 */}
-            <CheckoutBtn onClick={handleCheckout}>
-              CHECKOUT
-            </CheckoutBtn>
+
+            <CheckoutBtn onClick={handleCheckout}>CHECKOUT</CheckoutBtn>
           </SummaryBox>
         </SummarySection>
       </CartLayout>
@@ -149,9 +160,6 @@ const Cart: React.FC = () => {
 };
 
 export default Cart;
-
-// ---------- Styled Components ----------
-// (기존 스타일 코드와 동일합니다)
 
 const Container = styled.div`
   max-width: 1200px;
@@ -170,7 +178,7 @@ const Title = styled.h2`
 const CartLayout = styled.div`
   display: flex;
   gap: 60px;
-  
+
   @media (max-width: 900px) {
     flex-direction: column;
   }
@@ -191,19 +199,25 @@ const TableHeader = styled.div`
   text-transform: uppercase;
   color: #666;
 
-  span:nth-child(2) { text-align: center; }
-  span:nth-child(3) { text-align: right; }
-  
-  @media (max-width: 600px) { display: none; }
+  span:nth-child(2) {
+    text-align: center;
+  }
+  span:nth-child(3) {
+    text-align: right;
+  }
+
+  @media (max-width: 600px) {
+    display: none;
+  }
 `;
 
-const CartItem = styled.div`
+const CartItemRow = styled.div`
   display: grid;
   grid-template-columns: 2fr 1fr 0.6fr;
   align-items: center;
   padding: 24px 0;
   border-bottom: 1px solid #eee;
-  
+
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -213,23 +227,30 @@ const CartItem = styled.div`
 const ItemInfo = styled.div`
   display: flex;
   gap: 20px;
-  
+
   img {
     width: 90px;
     height: 120px;
     object-fit: cover;
     background-color: #f0f0f0;
   }
-  
+
   div {
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 6px;
   }
-  
-  h4 { font-size: 15px; font-weight: 500; color: #1a1a1a; }
-  p { font-size: 13px; color: #666; }
+
+  h4 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1a1a1a;
+  }
+  p {
+    font-size: 13px;
+    color: #666;
+  }
 `;
 
 const RemoveBtn = styled.button`
@@ -242,7 +263,9 @@ const RemoveBtn = styled.button`
   text-decoration: underline;
   cursor: pointer;
   margin-top: 5px;
-  &:hover { color: #333; }
+  &:hover {
+    color: #333;
+  }
 `;
 
 const QuantityControl = styled.div`
@@ -250,17 +273,23 @@ const QuantityControl = styled.div`
   justify-content: center;
   align-items: center;
   gap: 15px;
-  
+
   button {
     width: 28px;
     height: 28px;
     border: 1px solid #ddd;
     background: #fff;
     cursor: pointer;
-    &:hover { border-color: #333; }
+    &:hover {
+      border-color: #333;
+    }
   }
-  
-  span { font-size: 14px; min-width: 20px; text-align: center; }
+
+  span {
+    font-size: 14px;
+    min-width: 20px;
+    text-align: center;
+  }
 `;
 
 const ItemPrice = styled.div`
@@ -319,16 +348,25 @@ const CheckoutBtn = styled.button`
   cursor: pointer;
   letter-spacing: 1px;
   transition: background 0.3s;
-  
-  &:hover { background-color: #333; }
+
+  &:hover {
+    background-color: #333;
+  }
 `;
 
 const EmptyContainer = styled.div`
   text-align: center;
   padding: 100px 20px;
-  
-  h2 { font-size: 24px; font-family: 'Playfair Display', serif; margin-bottom: 10px; }
-  p { color: #888; margin-bottom: 30px; }
+
+  h2 {
+    font-size: 24px;
+    font-family: 'Playfair Display', serif;
+    margin-bottom: 10px;
+  }
+  p {
+    color: #888;
+    margin-bottom: 30px;
+  }
 `;
 
 const ShopLink = styled(Link)`
@@ -340,5 +378,8 @@ const ShopLink = styled(Link)`
   font-weight: 600;
   letter-spacing: 1px;
   transition: background 0.3s;
-  &:hover { background-color: #333; }
+  &:hover {
+    background-color: #333;
+  }
 `;
+

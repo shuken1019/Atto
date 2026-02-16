@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `user` (
   phone VARCHAR(20) DEFAULT NULL,
   mail VARCHAR(150) NOT NULL,
   password VARCHAR(255) NOT NULL,
+  role ENUM('ADMIN','USER') NOT NULL DEFAULT 'USER',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (userId),
@@ -89,6 +90,25 @@ CREATE TABLE IF NOT EXISTS payment (
   KEY idx_payment_userId (userId),
   KEY idx_payment_status (status),
   CONSTRAINT fk_payment_user
+    FOREIGN KEY (userId) REFERENCES `user` (userId)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS cart (
+  cartId BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  userId BIGINT UNSIGNED NOT NULL,
+  productId BIGINT UNSIGNED NOT NULL,
+  colorId INT NOT NULL,
+  sizeId INT NOT NULL,
+  quantity INT NOT NULL DEFAULT 1,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (cartId),
+  KEY idx_cart_userId (userId),
+  KEY idx_cart_productId (productId),
+  KEY idx_cart_option (userId, productId, colorId, sizeId),
+  CONSTRAINT fk_cart_user
     FOREIGN KEY (userId) REFERENCES `user` (userId)
     ON DELETE CASCADE
     ON UPDATE CASCADE

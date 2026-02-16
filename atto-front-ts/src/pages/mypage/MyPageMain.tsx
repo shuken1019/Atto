@@ -24,6 +24,8 @@ const MyPageMain: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('attoUser');
+    localStorage.removeItem('atto_auth');
+    window.dispatchEvent(new Event('auth-changed'));
     navigate('/login');
   };
 

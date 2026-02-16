@@ -2,7 +2,7 @@
 import styled from 'styled-components';
 import ProductCard from '../../components/product/ProductCard';
 import { getProducts } from '../../services/productService';
-import { getScraps, removeScrap } from '../../services/scrapService';
+import { getScraps } from '../../services/scrapService';
 import type { IProduct } from '../../types/product';
 
 type ScrapItem = {
@@ -34,13 +34,26 @@ const ScrapList: React.FC = () => {
     load();
   }, []);
 
-  const handleRemove = async (productId: number) => {
-    try {
-      await removeScrap(productId);
-      await load();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : '스크랩 삭제에 실패했습니다.');
+  const handleScrapChange = (productId: number, scrapped: boolean) => {
+    if (!scrapped) {
+      setScraps((prev) => prev.filter((item) => Number(item.productId) !== Number(productId)));
+      return;
     }
+
+    setScraps((prev) => {
+      if (prev.some((item) => Number(item.productId) === Number(productId))) {
+        return prev;
+      }
+      return [
+        {
+          scrapId: Date.now(),
+          userId: 0,
+          productId,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ];
+    });
   };
 
   const scrapProducts = scraps
@@ -59,10 +72,7 @@ const ScrapList: React.FC = () => {
         <Grid>
           {scrapProducts.map(({ scrap, product }) => (
             <CardWrap key={scrap.scrapId}>
-              <ProductCard product={product} initialScrapped />
-              <RemoveButton type="button" onClick={() => handleRemove(product.id)}>
-                스크랩 삭제
-              </RemoveButton>
+              <ProductCard product={product} initialScrapped onScrapChange={handleScrapChange} />
             </CardWrap>
           ))}
         </Grid>
@@ -98,21 +108,7 @@ const Grid = styled.div`
 const CardWrap = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-`;
-
-const RemoveButton = styled.button`
-  border: 1px solid #ddd;
-  background: #fff;
-  color: #555;
-  font-size: 12px;
-  padding: 8px 10px;
-  cursor: pointer;
-
-  &:hover {
-    border-color: #333;
-    color: #111;
-  }
+  gap: 0;
 `;
 
 const EmptyText = styled.p`

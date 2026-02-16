@@ -36,12 +36,14 @@ import BannerManagement from './pages/admin/BannerManagement';
 import SalesManagement from './pages/admin/SalesManagement';
 
 const isAdminUser = () => {
-  const raw = localStorage.getItem('atto_auth');
-  if (!raw) return false;
+  const rawAuth = localStorage.getItem('atto_auth');
+  const rawUser = localStorage.getItem('attoUser');
 
   try {
-    const parsed = JSON.parse(raw) as { role?: string };
-    return parsed.role === 'admin';
+    const parsedAuth = rawAuth ? (JSON.parse(rawAuth) as { role?: string }) : null;
+    const parsedUser = rawUser ? (JSON.parse(rawUser) as { role?: string }) : null;
+    const role = String(parsedAuth?.role ?? parsedUser?.role ?? '').toUpperCase();
+    return role === 'ADMIN';
   } catch {
     return false;
   }

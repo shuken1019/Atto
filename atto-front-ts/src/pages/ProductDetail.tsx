@@ -1,24 +1,38 @@
-// src/pages/ProductDetail.tsx
+﻿// src/pages/ProductDetail.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getProductById } from '../services/productService';
+import { addScrap, getScraps, removeScrap } from '../services/scrapService';
+import { addCartItem } from '../services/cartService';
 import type { IProduct } from '../types/product';
 import { ProductImageSVG } from '../components/common/Placeholders';
 
 const ProductDetail: React.FC = () => {
-  const { id } = useParams<{ id: string }>(); // URL에서 id 가져오기
+  const { id } = useParams<{ id: string }>(); // URL?먯꽌 id 媛?몄삤湲?
   const navigate = useNavigate();
   const [product, setProduct] = useState<IProduct | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 옵션 상태 관리
+  // ?듭뀡 ?곹깭 愿由?
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [isScrapped, setIsScrapped] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [scrapPending, setScrapPending] = useState(false);
+  const variants = product?.variants ?? [];
+  const sizeLabelToId = (size: string): number => {
+    if (size === 'S') return 1;
+    if (size === 'M') return 2;
+    if (size === 'L') return 3;
+    if (size.startsWith('SIZE-')) {
+      const parsed = Number(size.replace('SIZE-', ''));
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+    }
+    return 0;
+  };
 
   useEffect(() => {
     if (id) {
@@ -29,27 +43,84 @@ const ProductDetail: React.FC = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    const loadScrapState = async () => {
+      try {
+        const scraps = await getScraps();
+        setIsScrapped(scraps.some((item) => Number(item.productId) === Number(id)));
+      } catch {
+        setIsScrapped(false);
+      }
+    };
+    loadScrapState();
+  }, [id]);
+
+  const colors = useMemo(() => Array.from(new Set(variants.map((v) => v.color))), [variants]);
+  const sizes = useMemo(() => {
+    const raw = Array.from(new Set(variants.flatMap((v) => v.sizes)));
+    const order = new Map<string, number>([
+      ['S', 1],
+      ['M', 2],
+      ['L', 3],
+    ]);
+    return raw.sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99) || a.localeCompare(b));
+  }, [variants]);
+
+  const isColorBlocked = (color: string): boolean => {
+    if (!selectedSize) return false;
+    const variant = variants.find((v) => v.color === color);
+    return !variant?.sizes.includes(selectedSize);
+  };
+
+  useEffect(() => {
+    if (!selectedColor) return;
+    if (isColorBlocked(selectedColor)) {
+      setSelectedColor(null);
+    }
+  }, [selectedSize, selectedColor, variants]);
+
   if (loading) return <LoadingMsg>Loading...</LoadingMsg>;
   if (!product) return <LoadingMsg>Product not found.</LoadingMsg>;
 
-  // 이미지 처리 로직
+  // ?대?吏 泥섎━ 濡쒖쭅
   const mainImage = product.representativeImages[0] || product.thumbnailImage;
   const isRealImage =
     mainImage &&
     mainImage.startsWith('http') &&
     !mainImage.includes('via.placeholder');
 
-  // 상품 데이터에서 가능한 옵션 추출 (중복 제거)
-  const colors = Array.from(new Set(product.variants.map(v => v.color)));
-  const sizes = Array.from(new Set(product.variants.flatMap(v => v.sizes)));
-
-  // 장바구니 담기 핸들러
+  // ?λ컮援щ땲 ?닿린 ?몃뱾??
   const handleAddToCart = () => {
+    if (!product) return;
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
       alert('옵션을 선택해주세요.');
       return;
     }
-    setIsCartModalOpen(true);
+    const selectedVariant = variants.find((v) => v.color === selectedColor);
+    const colorId = Number(selectedVariant?.colorId ?? 0);
+    const sizeId = Number(selectedSize ? sizeLabelToId(selectedSize) : 0);
+
+    if (!Number.isInteger(colorId) || colorId <= 0 || !Number.isInteger(sizeId) || sizeId <= 0) {
+      alert('옵션 정보가 올바르지 않습니다.');
+      return;
+    }
+
+    const run = async () => {
+      try {
+        await addCartItem({
+          productId: product.id,
+          colorId,
+          sizeId,
+          quantity: 1,
+        });
+        setIsCartModalOpen(true);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '장바구니 추가에 실패했습니다.';
+        alert(message);
+      }
+    };
+    run();
   };
 
   const shareUrl = window.location.href;
@@ -59,7 +130,7 @@ const ProductDetail: React.FC = () => {
       await navigator.clipboard.writeText(shareUrl);
       alert('링크가 복사되었습니다.');
     } catch {
-      alert('복사에 실패했어요.');
+      alert('복사에 실패했습니다.');
     }
   };
 
@@ -78,7 +149,25 @@ const ProductDetail: React.FC = () => {
   };
 
   const handleScrap = () => {
-    setIsScrapped((prev) => !prev);
+    if (!product || scrapPending) return;
+    const run = async () => {
+      setScrapPending(true);
+      try {
+        if (isScrapped) {
+          await removeScrap(product.id);
+          setIsScrapped(false);
+        } else {
+          await addScrap(product.id);
+          setIsScrapped(true);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '스크랩 처리에 실패했습니다.';
+        alert(message);
+      } finally {
+        setScrapPending(false);
+      }
+    };
+    run();
   };
 
   return (
@@ -109,16 +198,24 @@ const ProductDetail: React.FC = () => {
           </NameRow>
           <Price>₩{product.price.toLocaleString()}</Price>
 
-          <Description>
-            {product.description}
-            <br />
-            자연스러운 실루엣과 편안한 착용감을 제공합니다.
-            일상 속에서 가장 손이 많이 가는 아이템이 될 것입니다.
-          </Description>
+          <Description>{product.description}</Description>
 
           <Divider />
 
           <OptionsWrapper>
+            {sizes.length > 0 && (
+              <OptionGroup>
+                <OptionLabel>Size</OptionLabel>
+                <SizeGrid>
+                  {sizes.map((size) => (
+                    <SizeButton key={size} $selected={selectedSize === size} onClick={() => setSelectedSize(size)}>
+                      {size}
+                    </SizeButton>
+                  ))}
+                </SizeGrid>
+              </OptionGroup>
+            )}
+
             {colors.length > 0 && (
               <OptionGroup>
                 <OptionLabel>Color</OptionLabel>
@@ -126,40 +223,33 @@ const ProductDetail: React.FC = () => {
                   {colors.map((color) => {
                     const variant = product.variants.find((v) => v.color === color);
                     const colorCode = variant?.colorCode || '#ddd';
+                    const blocked = isColorBlocked(color);
 
                     return (
                       <ColorButton
                         key={color}
-                        colorCode={colorCode}
-                        selected={selectedColor === color}
-                        onClick={() => setSelectedColor(color)}
-                        title={color}
+                        $colorCode={colorCode}
+                        $selected={selectedColor === color}
+                        $blocked={blocked}
+                        disabled={blocked}
+                        onClick={() => {
+                          if (!blocked) setSelectedColor(color);
+                        }}
+                        title={blocked ? `${color} (선택 불가)` : color}
                       />
                     );
                   })}
                 </ColorGrid>
+                {selectedSize && <SelectedText>선택 사이즈: {selectedSize}</SelectedText>}
                 {selectedColor && <SelectedText>{selectedColor}</SelectedText>}
-              </OptionGroup>
-            )}
-
-            {sizes.length > 0 && (
-              <OptionGroup>
-                <OptionLabel>Size</OptionLabel>
-                <SizeGrid>
-                  {sizes.map((size) => (
-                    <SizeButton key={size} selected={selectedSize === size} onClick={() => setSelectedSize(size)}>
-                      {size}
-                    </SizeButton>
-                  ))}
-                </SizeGrid>
               </OptionGroup>
             )}
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn type="button">구매하기</AddToCartBtn>
+            <AddToCartBtn type="button">바로구매</AddToCartBtn>
             <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
-            <ScrapBtn type="button" $active={isScrapped} onClick={handleScrap}>
+            <ScrapBtn type="button" $active={isScrapped} onClick={handleScrap} disabled={scrapPending}>
               <HeartIcon viewBox="0 0 24 24" fill={isScrapped ? '#ef4444' : 'none'} stroke={isScrapped ? '#ef4444' : 'currentColor'} strokeWidth="1.9">
                 <path d="M12 20.5S4 15.2 4 9.4A4.4 4.4 0 0 1 8.4 5c1.5 0 2.9.7 3.6 1.8A4.4 4.4 0 0 1 15.6 5 4.4 4.4 0 0 1 20 9.4c0 5.8-8 11.1-8 11.1Z" />
               </HeartIcon>
@@ -184,7 +274,7 @@ const ProductDetail: React.FC = () => {
                   <source src={media.url} />
                 </video>
               ) : (
-                <img src={media.url} alt={`${product.name} 상세 이미지 ${index + 1}`} />
+                <img src={media.url} alt={`${product.name} ?곸꽭 ?대?吏 ${index + 1}`} />
               )}
             </MediaCard>
           ))}
@@ -192,13 +282,13 @@ const ProductDetail: React.FC = () => {
       </DetailSection>
 
       <DetailSection>
-        <DetailTitle>사이즈 표</DetailTitle>
+        <DetailTitle>사이즈</DetailTitle>
         <SizeTable>
           <thead>
             <tr>
-              <th>사이즈</th>
+              <th>Size</th>
               <th>어깨</th>
-              <th>가슴</th>
+              <th>Chest</th>
               <th>총장</th>
             </tr>
           </thead>
@@ -244,7 +334,7 @@ const ProductDetail: React.FC = () => {
               </ShareChannel>
               <ShareChannel type="button" onClick={() => openShareWindow('naver')}>
                 <CircleIcon $bg="#16a34a">N</CircleIcon>
-                <span>네이버</span>
+                <span>Naver</span>
               </ShareChannel>
               <ShareChannel type="button" onClick={() => openShareWindow('facebook')}>
                 <CircleIcon $bg="#3b82f6">f</CircleIcon>
@@ -450,14 +540,15 @@ const ColorGrid = styled.div`
   gap: 12px;
 `;
 
-const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
+const ColorButton = styled.button<{ $colorCode: string; $selected: boolean; $blocked?: boolean }>`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: ${props => props.colorCode};
+  background-color: ${props => props.$colorCode};
   border: 1px solid #ddd;
-  cursor: pointer;
+  cursor: ${props => (props.$blocked ? 'not-allowed' : 'pointer')};
   position: relative;
+  overflow: hidden;
   
   &::after {
     content: '';
@@ -467,7 +558,33 @@ const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: 1px solid ${props => props.selected ? '#333' : 'transparent'};
+    border: 1px solid ${props => props.$selected ? '#333' : 'transparent'};
+  }
+
+  &::before {
+    content: '';
+    display: ${props => (props.$blocked ? 'block' : 'none')};
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background:
+      linear-gradient(
+        45deg,
+        transparent calc(50% - 0.75px),
+        rgba(242, 242, 242, 0.95) calc(50% - 0.75px),
+        rgba(196, 196, 196, 0.95) calc(50% + 0.75px),
+        transparent calc(50% + 0.75px)
+      ),
+      linear-gradient(
+        -45deg,
+        transparent calc(50% - 0.75px),
+        rgba(242, 242, 242, 0.95) calc(50% - 0.75px),
+        rgba(196, 196, 196, 0.95) calc(50% + 0.75px),
+        transparent calc(50% + 0.75px)
+      );
   }
 `;
 
@@ -477,13 +594,13 @@ const SizeGrid = styled.div`
   flex-wrap: wrap;
 `;
 
-const SizeButton = styled.button<{ selected: boolean }>`
+const SizeButton = styled.button<{ $selected: boolean }>`
   min-width: 48px;
   height: 48px;
   padding: 0 16px;
-  border: 1px solid ${props => props.selected ? '#333' : '#ddd'};
-  background-color: ${props => props.selected ? '#333' : 'transparent'};
-  color: ${props => props.selected ? '#fff' : '#333'};
+  border: 1px solid ${props => props.$selected ? '#333' : '#ddd'};
+  background-color: ${props => props.$selected ? '#333' : 'transparent'};
+  color: ${props => props.$selected ? '#fff' : '#333'};
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;

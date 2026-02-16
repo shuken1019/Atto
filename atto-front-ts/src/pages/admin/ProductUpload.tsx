@@ -1,48 +1,50 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
 import type { CategoryType } from '../../types/product';
 import { ProductImageSVG } from '../../components/common/Placeholders';
 
-interface ColorOption {
+type AdminColor = {
+  colorId: number;
   name: string;
   code: string;
-}
+};
 
-interface SizeRow {
-  label: string;
-  shoulder: string;
-  chest: string;
-  length: string;
-}
+type AdminSize = {
+  sizeId: number;
+  label: 'S' | 'M' | 'L';
+};
 
-const DEFAULT_COLORS: ColorOption[] = [
-  { name: 'Black', code: '#222222' },
-  { name: 'Ivory', code: '#efe9de' },
+const FALLBACK_COLORS: AdminColor[] = [
+  { colorId: 1, name: 'Black', code: '#222222' },
+  { colorId: 2, name: 'Ivory', code: '#efe9de' },
+  { colorId: 3, name: 'White', code: '#ffffff' },
+  { colorId: 4, name: 'Gray', code: '#a5a5a5' },
+  { colorId: 5, name: 'Navy', code: '#1f2c56' },
 ];
 
-const DEFAULT_SIZES = ['S', 'M', 'L'];
+const AVAILABLE_SIZES: AdminSize[] = [
+  { sizeId: 1, label: 'S' },
+  { sizeId: 2, label: 'M' },
+  { sizeId: 3, label: 'L' },
+];
 
 const ProductUpload = () => {
-  const [name, setName] = useState('Linen Relaxed Shirt');
+  const [name, setName] = useState('');
   const [category, setCategory] = useState<CategoryType>('top');
-  const [price, setPrice] = useState('89000');
-  const [description, setDescription] = useState('부드러운 린넨 텍스처와 여유로운 핏의 데일리 셔츠');
-  const [detailDescription] = useState('여유로운 실루엣으로 다양한 하의와 자연스럽게 어울립니다.\n가볍고 통기성이 좋아 사계절 레이어드 아이템으로 활용하기 좋습니다.');
-
-  const [colorText, setColorText] = useState('Black,#222222\nIvory,#efe9de');
-  const [sizeText, setSizeText] = useState('S, M, L');
-  const [sizeGuideText, setSizeGuideText] = useState('S,44,51,67\nM,46,54,69\nL,48,57,71');
-  const [keyInfoText, setKeyInfoText] = useState('소재: Linen 70% / Cotton 30%\n제조국: 대한민국\n세탁: 드라이클리닝 권장');
-
+  const [price, setPrice] = useState('');
+  const [description, setDescription] = useState('');
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
   const [representativeImages, setRepresentativeImages] = useState<File[]>([]);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [availableColors, setAvailableColors] = useState<AdminColor[]>(FALLBACK_COLORS);
+  const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
+  const [sizeColorSelections, setSizeColorSelections] = useState<Record<number, number[]>>({});
+  const [optionStocks, setOptionStocks] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const representativePreviewUrls = useMemo(
     () => representativeImages.map((file) => URL.createObjectURL(file)),
-    [representativeImages],
+    [representativeImages]
   );
 
   useEffect(() => {
@@ -51,56 +53,60 @@ const ProductUpload = () => {
     };
   }, [representativePreviewUrls]);
 
-  const colorOptions = useMemo<ColorOption[]>(() => {
-    const parsed = colorText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [namePart, codePart] = line.split(',').map((value) => value?.trim());
-        return {
-          name: namePart || '',
-          code: codePart || '#dddddd',
-        };
-      })
-      .filter((item) => item.name.length > 0);
+  useEffect(() => {
+    return () => {
+      if (thumbnailPreviewUrl) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+      }
+    };
+  }, [thumbnailPreviewUrl]);
 
-    return parsed.length > 0 ? parsed : DEFAULT_COLORS;
-  }, [colorText]);
+  useEffect(() => {
+    const loadColors = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:4000/api/admin/colors');
+        const result = await response.json();
+        if (!response.ok || !result.ok || !Array.isArray(result.colors)) {
+          return;
+        }
 
-  const sizeOptions = useMemo<string[]>(() => {
-    const parsed = sizeText
-      .split(',')
-      .map((size) => size.trim())
-      .filter(Boolean);
+        const parsed = result.colors
+          .map((row: unknown) => {
+            const color = row as Partial<AdminColor>;
+            const colorId = Number(color.colorId);
+            const name = String(color.name ?? '').trim();
+            const code = String(color.code ?? '#dddddd').trim() || '#dddddd';
+            if (!Number.isInteger(colorId) || colorId <= 0 || !name) return null;
+            return { colorId, name, code };
+          })
+          .filter((row: AdminColor | null): row is AdminColor => Boolean(row));
 
-    return parsed.length > 0 ? parsed : DEFAULT_SIZES;
-  }, [sizeText]);
+        if (parsed.length > 0) {
+          setAvailableColors(parsed);
+        }
+      } catch {
+        // fallback colors
+      }
+    };
 
-  const sizeRows = useMemo<SizeRow[]>(() => {
-    return sizeGuideText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [label, shoulder, chest, length] = line.split(',').map((value) => value.trim());
-        return {
-          label: label || '-',
-          shoulder: shoulder || '-',
-          chest: chest || '-',
-          length: length || '-',
-        };
-      });
-  }, [sizeGuideText]);
+    loadColors();
+  }, []);
 
-  const keyInfos = useMemo(() => {
-    return keyInfoText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-  }, [keyInfoText]);
+  const selectedSizes = useMemo(
+    () => AVAILABLE_SIZES.filter((size) => selectedSizeIds.includes(size.sizeId)),
+    [selectedSizeIds]
+  );
 
-  const mainImage = representativePreviewUrls[0] || '';
+  const selectedColors = useMemo(() => {
+    const colorSet = new Set<number>();
+    for (const sizeId of selectedSizeIds) {
+      const ids = sizeColorSelections[sizeId] ?? [];
+      ids.forEach((id) => colorSet.add(id));
+    }
+    return availableColors.filter((color) => colorSet.has(color.colorId));
+  }, [availableColors, selectedSizeIds, sizeColorSelections]);
+
+  const mainImage = thumbnailPreviewUrl || representativePreviewUrls[0] || '';
   const isRealImage = mainImage.length > 0;
 
   const handleSelectRepresentativeImages = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,20 +114,183 @@ const ProductUpload = () => {
     setRepresentativeImages(files);
   };
 
-  const handleSubmit = () => {
-    alert('상품 등록 UI 목업입니다. 현재는 미리보기 기반 편집만 동작합니다.');
+  const handleSelectThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setThumbnailFile(file);
+    if (thumbnailPreviewUrl) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+      setThumbnailPreviewUrl('');
+    }
+    if (file) {
+      setThumbnailPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(new Error('file read failed'));
+      reader.readAsDataURL(file);
+    });
+
+  const optionKey = (sizeId: number, colorId: number) => `${sizeId}:${colorId}`;
+
+  const handleToggleSize = (sizeId: number) => {
+    setSelectedSizeIds((prev) => {
+      if (prev.includes(sizeId)) {
+        const next = prev.filter((id) => id !== sizeId);
+        setSizeColorSelections((selections) => {
+          const copied = { ...selections };
+          delete copied[sizeId];
+          return copied;
+        });
+        setOptionStocks((stocks) => {
+          const copied: Record<string, string> = {};
+          Object.entries(stocks).forEach(([key, value]) => {
+            if (!key.startsWith(`${sizeId}:`)) copied[key] = value;
+          });
+          return copied;
+        });
+        return next;
+      }
+
+      setSizeColorSelections((selections) => ({ ...selections, [sizeId]: selections[sizeId] ?? [] }));
+      return [...prev, sizeId];
+    });
+  };
+
+  const handleToggleSizeColor = (sizeId: number, colorId: number) => {
+    setSizeColorSelections((prev) => {
+      const current = prev[sizeId] ?? [];
+      if (current.includes(colorId)) {
+        const next = current.filter((id) => id !== colorId);
+        setOptionStocks((stocks) => {
+          const copied = { ...stocks };
+          delete copied[optionKey(sizeId, colorId)];
+          return copied;
+        });
+        return { ...prev, [sizeId]: next };
+      }
+
+      setOptionStocks((stocks) => ({
+        ...stocks,
+        [optionKey(sizeId, colorId)]: stocks[optionKey(sizeId, colorId)] ?? '0',
+      }));
+      return { ...prev, [sizeId]: [...current, colorId] };
+    });
+  };
+
+  const handleOptionStockChange = (sizeId: number, colorId: number, value: string) => {
+    setOptionStocks((prev) => ({ ...prev, [optionKey(sizeId, colorId)]: value }));
+  };
+
+  const handleSubmit = async () => {
+    const safeName = name.trim();
+    const safeDescription = description.trim();
+    const priceNum = Number(price);
+
+    if (!safeName) {
+      alert('상품명을 입력해주세요.');
+      return;
+    }
+    if (!Number.isInteger(priceNum) || priceNum < 0) {
+      alert('가격은 0 이상 정수로 입력해주세요.');
+      return;
+    }
+    if (selectedSizeIds.length === 0) {
+      alert('최소 1개 이상의 사이즈를 선택해주세요.');
+      return;
+    }
+    if (!thumbnailFile) {
+      alert('썸네일 이미지를 선택해주세요.');
+      return;
+    }
+
+    const productOptions = selectedSizeIds.flatMap((sizeId) => {
+      const colorIds = sizeColorSelections[sizeId] ?? [];
+      return colorIds.map((colorId) => {
+        const stockNum = Number(optionStocks[optionKey(sizeId, colorId)] ?? 0);
+        return {
+          colorId,
+          sizeId,
+          stock: Number.isInteger(stockNum) && stockNum >= 0 ? stockNum : 0,
+          additionalPrice: 0,
+        };
+      });
+    });
+
+    if (productOptions.length === 0) {
+      alert('사이즈별로 최소 1개 이상의 색상을 선택해주세요.');
+      return;
+    }
+
+    const colorStockMap: Record<number, number> = {};
+    productOptions.forEach((option) => {
+      colorStockMap[option.colorId] = (colorStockMap[option.colorId] ?? 0) + option.stock;
+    });
+    const productColors = Object.entries(colorStockMap).map(([colorId, stock]) => ({
+      colorId: Number(colorId),
+      stock,
+    }));
+
+    setSubmitting(true);
+    try {
+      const thumbnailDataUrl = await fileToDataUrl(thumbnailFile);
+
+      const response = await fetch('http://127.0.0.1:4000/api/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: safeName,
+          description: safeDescription,
+          price: priceNum,
+          category,
+          status: 'ON_SALE',
+          thumbnail: '',
+          thumbnailDataUrl,
+          thumbnailName: thumbnailFile.name,
+          productColors,
+          productOptions,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        alert(result.message ?? '상품 등록에 실패했습니다.');
+        return;
+      }
+
+      alert(`상품 등록 완료 (ID: ${result.productId})`);
+      setName('');
+      setPrice('');
+      setDescription('');
+      setThumbnailFile(null);
+      if (thumbnailPreviewUrl) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+      }
+      setThumbnailPreviewUrl('');
+      setRepresentativeImages([]);
+      setSelectedSizeIds([]);
+      setSizeColorSelections({});
+      setOptionStocks({});
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Page>
       <Header>
         <PageTitle>상품 업로드/수정</PageTitle>
-        <PageDesc>왼쪽에서 값을 수정하면 오른쪽 Product 페이지 미리보기가 즉시 반영됩니다.</PageDesc>
+        <PageDesc>상품 기본정보와 색상/재고를 등록합니다.</PageDesc>
       </Header>
 
       <Workspace>
         <EditorPanel>
-          <PanelTitle>편집 패널</PanelTitle>
+          <PanelTitle>입력 폼</PanelTitle>
 
           <Field>
             <Label htmlFor="product-name">상품명</Label>
@@ -129,7 +298,7 @@ const ProductUpload = () => {
               id="product-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="상품명을 입력하세요"
+              placeholder="상품명을 입력해주세요"
             />
           </Field>
 
@@ -146,13 +315,7 @@ const ProductUpload = () => {
 
             <Field>
               <Label htmlFor="product-price">가격 (원)</Label>
-              <Input
-                id="product-price"
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0"
-              />
+              <Input id="product-price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
             </Field>
           </Row>
 
@@ -163,61 +326,102 @@ const ProductUpload = () => {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="상품 설명을 입력해주세요"
             />
           </Field>
 
           <Field>
-            <Label htmlFor="representative-images">대표 이미지 (최대 3장)</Label>
+            <Label htmlFor="product-thumbnail-file">썸네일</Label>
+            <SmallUploadButton htmlFor="product-thumbnail-file">썸네일 불러오기</SmallUploadButton>
+            <HiddenFileInput id="product-thumbnail-file" type="file" accept="image/*" onChange={handleSelectThumbnail} />
+            <ThumbnailMeta>{thumbnailFile ? thumbnailFile.name : '선택된 파일 없음'}</ThumbnailMeta>
+          </Field>
+
+          <Field>
+            <Label htmlFor="representative-images">대표 이미지 (최대 3장, 미리보기 전용)</Label>
             <UploadButton htmlFor="representative-images">대표 이미지 선택</UploadButton>
             <HiddenFileInput id="representative-images" type="file" accept="image/*" multiple onChange={handleSelectRepresentativeImages} />
           </Field>
 
-          <ContentField>
-            <Label>상세 콘텐츠 (상세내용 + 상세이미지 + 상세동영상)</Label>
-            <EditorTabs>
-              <EditorTab type="button" $active onClick={() => navigate('/admin/upload/direct-write')}>직접 작성</EditorTab>
-              <EditorTab type="button" onClick={() => navigate('/admin/upload/html-write')}>HTML 작성</EditorTab>
-            </EditorTabs>
-          </ContentField>
-
           <Field>
-            <Label htmlFor="color-options">컬러 옵션 (줄바꿈: 컬러명,헥사코드)</Label>
-            <TextArea
-              id="color-options"
-              rows={4}
-              value={colorText}
-              onChange={(e) => setColorText(e.target.value)}
-              placeholder={'Black,#222222\nIvory,#efe9de'}
-            />
+            <Label>사이즈 선택</Label>
+            <SizeGrid>
+              {AVAILABLE_SIZES.map((size) => (
+                <SizeButton
+                  key={size.sizeId}
+                  type="button"
+                  selected={selectedSizeIds.includes(size.sizeId)}
+                  onClick={() => handleToggleSize(size.sizeId)}
+                >
+                  {size.label}
+                </SizeButton>
+              ))}
+            </SizeGrid>
           </Field>
 
-          <Field>
-            <Label htmlFor="size-options">사이즈 옵션 (콤마 구분)</Label>
-            <Input
-              id="size-options"
-              value={sizeText}
-              onChange={(e) => setSizeText(e.target.value)}
-              placeholder="S, M, L"
-            />
-          </Field>
+          {selectedSizes.map((size) => (
+            <Field key={`color-${size.sizeId}`}>
+              <Label>{size.label} 색상 선택</Label>
+              <ColorGrid>
+                {availableColors.map((color) => (
+                  <ColorButton
+                    key={`${size.sizeId}-${color.colorId}`}
+                    type="button"
+                    colorCode={color.code}
+                    selected={(sizeColorSelections[size.sizeId] ?? []).includes(color.colorId)}
+                    onClick={() => handleToggleSizeColor(size.sizeId, color.colorId)}
+                    title={color.name}
+                  />
+                ))}
+              </ColorGrid>
+            </Field>
+          ))}
 
-          <Field>
-            <Label htmlFor="size-guide">사이즈 표 (줄바꿈: 사이즈,어깨,가슴,총장)</Label>
-            <TextArea
-              id="size-guide"
-              rows={5}
-              value={sizeGuideText}
-              onChange={(e) => setSizeGuideText(e.target.value)}
-            />
-          </Field>
+          {selectedSizes.map((size) => {
+            const colorIds = sizeColorSelections[size.sizeId] ?? [];
+            const colors = availableColors.filter((color) => colorIds.includes(color.colorId));
+            if (colors.length === 0) return null;
+            return (
+              <Field key={`stock-${size.sizeId}`}>
+                <Label>{size.label} 색상별 재고</Label>
+                <StockList>
+                  {colors.map((color) => (
+                    <StockRow key={`${size.sizeId}-${color.colorId}`}>
+                      <StockColor>
+                        <Dot style={{ backgroundColor: color.code }} />
+                        {color.name}
+                      </StockColor>
+                      <StockInput
+                        type="number"
+                        min={0}
+                        value={optionStocks[optionKey(size.sizeId, color.colorId)] ?? '0'}
+                        onChange={(e) => handleOptionStockChange(size.sizeId, color.colorId, e.target.value)}
+                      />
+                    </StockRow>
+                  ))}
+                </StockList>
+              </Field>
+            );
+          })}
 
-          <Field>
-            <Label htmlFor="key-info">상품 주요 정보 (줄바꿈 구분)</Label>
-            <TextArea id="key-info" rows={5} value={keyInfoText} onChange={(e) => setKeyInfoText(e.target.value)} />
-          </Field>
+          {selectedColors.length > 0 && (
+            <Field>
+              <Label>선택된 색상 미리보기</Label>
+              <StockList>
+                {selectedColors.map((color) => (
+                  <StockRow key={color.colorId}>
+                    <StockColor>
+                      <Dot style={{ backgroundColor: color.code }} />
+                      {color.name}
+                    </StockColor>
+                  </StockRow>
+                ))}
+              </StockList>
+            </Field>
+          )}
 
-          <SubmitButton type="button" onClick={handleSubmit}>
-            상품 등록
+          <SubmitButton type="button" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? '등록 중...' : '상품 등록'}
           </SubmitButton>
         </EditorPanel>
 
@@ -227,7 +431,7 @@ const ProductUpload = () => {
               <ImageSection>
                 <ImageWrapper>
                   {isRealImage ? (
-                    <img src={mainImage} alt={name} />
+                    <img src={mainImage} alt={name || 'preview'} />
                   ) : (
                     <ProductImageSVG type={category} />
                   )}
@@ -236,93 +440,27 @@ const ProductUpload = () => {
 
               <InfoSection>
                 <CategoryLabel>{category.toUpperCase()}</CategoryLabel>
-                <ProductName>{name || '상품명을 입력하세요'}</ProductName>
+                <ProductName>{name || '상품명을 입력해주세요'}</ProductName>
                 <Price>₩{Number(price || 0).toLocaleString()}</Price>
-
-                <Description>{description || '상품 요약을 입력하세요.'}</Description>
-
+                <Description>{description || '상품 요약을 입력해주세요.'}</Description>
                 <Divider />
-
-                <OptionsWrapper>
-                  <OptionGroup>
-                    <OptionLabel>Color</OptionLabel>
-                    <ColorGrid>
-                      {colorOptions.map((color) => (
-                        <ColorButton
-                          key={`${color.name}-${color.code}`}
-                          colorCode={color.code}
-                          selected={selectedColor === color.name}
-                          onClick={() => setSelectedColor(color.name)}
-                          title={color.name}
-                        />
-                      ))}
-                    </ColorGrid>
-                    {selectedColor && <SelectedText>{selectedColor}</SelectedText>}
-                  </OptionGroup>
-
-                  <OptionGroup>
-                    <OptionLabel>Size</OptionLabel>
-                    <SizeGrid>
-                      {sizeOptions.map((size) => (
-                        <SizeButton key={size} selected={selectedSize === size} onClick={() => setSelectedSize(size)}>
-                          {size}
-                        </SizeButton>
-                      ))}
-                    </SizeGrid>
-                  </OptionGroup>
-                </OptionsWrapper>
-
-                <ButtonGroup>
-                  <AddToCartBtn type="button">ADD TO CART</AddToCartBtn>
-                  <BuyNowBtn type="button">BUY NOW</BuyNowBtn>
-                </ButtonGroup>
-
-                <ExtraInfo>
-                  <p>Fabric: Linen 100% / Cotton 100%</p>
-                  <p>Care: Dry Clean Only</p>
-                </ExtraInfo>
+                <OptionLabel>Size</OptionLabel>
+                <SizeGrid>
+                  {selectedSizes.map((size) => (
+                    <SizeButton key={`preview-size-${size.sizeId}`} type="button" selected>
+                      {size.label}
+                    </SizeButton>
+                  ))}
+                </SizeGrid>
+                <Divider />
+                <OptionLabel>Color</OptionLabel>
+                <ColorGrid>
+                  {selectedColors.map((color) => (
+                    <ColorButton key={`preview-${color.colorId}`} type="button" colorCode={color.code} selected title={color.name} />
+                  ))}
+                </ColorGrid>
               </InfoSection>
             </Container>
-
-            <DetailSection>
-              <DetailTitle>상세 콘텐츠</DetailTitle>
-              <DetailContentFlow>
-                <DetailParagraph>{detailDescription || '상세 설명을 입력하세요.'}</DetailParagraph>
-              </DetailContentFlow>
-            </DetailSection>
-
-            <DetailSection>
-              <DetailTitle>사이즈 표</DetailTitle>
-              <SizeTable>
-                <thead>
-                  <tr>
-                    <th>사이즈</th>
-                    <th>어깨</th>
-                    <th>가슴</th>
-                    <th>총장</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sizeRows.map((row) => (
-                    <tr key={`${row.label}-${row.shoulder}-${row.chest}-${row.length}`}>
-                      <td>{row.label}</td>
-                      <td>{row.shoulder}</td>
-                      <td>{row.chest}</td>
-                      <td>{row.length}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </SizeTable>
-            </DetailSection>
-
-            <DetailSection>
-              <DetailTitle>상품 주요 정보</DetailTitle>
-              <KeyInfoList>
-                {keyInfos.map((info) => (
-                  <li key={info}>{info}</li>
-                ))}
-              </KeyInfoList>
-            </DetailSection>
           </PreviewScroll>
         </PreviewPanel>
       </Workspace>
@@ -383,34 +521,6 @@ const Field = styled.div`
   margin-bottom: 16px;
 `;
 
-const ContentField = styled(Field)`
-  padding: 12px;
-  border: 1px solid #ece7de;
-  background: #fcfbf8;
-`;
-
-const EditorTabs = styled.div`
-  display: flex;
-  border: 1px solid #111827;
-  background: #fff;
-`;
-
-const EditorTab = styled.button<{ $active?: boolean }>`
-  flex: 1;
-  height: 52px;
-  border: none;
-  border-right: 1px solid #111827;
-  background: ${(props) => (props.$active ? '#111827' : '#ffffff')};
-  font-size: 16px;
-  color: ${(props) => (props.$active ? '#ffffff' : '#1f2937')};
-  font-weight: 600;
-  cursor: pointer;
-
-  &:last-child {
-    border-right: none;
-  }
-`;
-
 const Row = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -459,8 +569,101 @@ const UploadButton = styled.label`
   display: inline-flex;
 `;
 
+const SmallUploadButton = styled.label`
+  border: 1px solid #ddd;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+`;
+
+const ThumbnailMeta = styled.p`
+  margin-top: 6px;
+  font-size: 12px;
+  color: #666;
+`;
+
 const HiddenFileInput = styled.input`
   display: none;
+`;
+
+const ColorGrid = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const SizeGrid = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const SizeButton = styled.button<{ selected: boolean }>`
+  min-width: 44px;
+  height: 36px;
+  border: 1px solid ${(props) => (props.selected ? '#222' : '#d9d9d9')};
+  background: ${(props) => (props.selected ? '#222' : '#fff')};
+  color: ${(props) => (props.selected ? '#fff' : '#222')};
+  font-size: 13px;
+  cursor: pointer;
+`;
+
+const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: ${(props) => props.colorCode};
+  border: 1px solid #ddd;
+  cursor: pointer;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid ${(props) => (props.selected ? '#333' : 'transparent')};
+  }
+`;
+
+const StockList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const StockRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+`;
+
+const StockColor = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+`;
+
+const Dot = styled.span`
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+`;
+
+const StockInput = styled.input`
+  width: 90px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  font-size: 13px;
 `;
 
 const SubmitButton = styled.button`
@@ -471,6 +674,11 @@ const SubmitButton = styled.button`
   height: 46px;
   font-size: 14px;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const PreviewPanel = styled.section`
@@ -553,15 +761,7 @@ const Description = styled.p`
 const Divider = styled.hr`
   border: none;
   border-top: 1px solid #e0e0e0;
-  margin-bottom: 30px;
-`;
-
-const OptionsWrapper = styled.div`
-  margin-bottom: 34px;
-`;
-
-const OptionGroup = styled.div`
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 `;
 
 const OptionLabel = styled.p`
@@ -569,149 +769,4 @@ const OptionLabel = styled.p`
   font-weight: 600;
   margin-bottom: 12px;
   color: #333;
-`;
-
-const SelectedText = styled.span`
-  font-size: 13px;
-  color: #666;
-  margin-top: 8px;
-  display: block;
-`;
-
-const ColorGrid = styled.div`
-  display: flex;
-  gap: 12px;
-`;
-
-const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background-color: ${(props) => props.colorCode};
-  border: 1px solid #ddd;
-  cursor: pointer;
-  position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 1px solid ${(props) => (props.selected ? '#333' : 'transparent')};
-  }
-`;
-
-const SizeGrid = styled.div`
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-`;
-
-const SizeButton = styled.button<{ selected: boolean }>`
-  min-width: 48px;
-  height: 46px;
-  padding: 0 16px;
-  border: 1px solid ${(props) => (props.selected ? '#333' : '#ddd')};
-  background-color: ${(props) => (props.selected ? '#333' : 'transparent')};
-  color: ${(props) => (props.selected ? '#fff' : '#333')};
-  font-size: 14px;
-  cursor: pointer;
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 12px;
-  margin-bottom: 34px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-  }
-`;
-
-const AddToCartBtn = styled.button`
-  flex: 1;
-  height: 54px;
-  background-color: #333;
-  color: #fff;
-  border: none;
-  font-size: 14px;
-`;
-
-const BuyNowBtn = styled.button`
-  flex: 1;
-  height: 54px;
-  background-color: #fff;
-  color: #333;
-  border: 1px solid #333;
-  font-size: 14px;
-`;
-
-const ExtraInfo = styled.div`
-  font-size: 13px;
-  color: #888;
-  line-height: 1.6;
-`;
-
-const DetailSection = styled.section`
-  margin: 0 20px 20px;
-  padding: 24px;
-  background: #fff;
-  border: 1px solid #ece7de;
-
-  @media (max-width: 768px) {
-    margin: 0 14px 14px;
-    padding: 16px;
-  }
-`;
-
-const DetailTitle = styled.h3`
-  font-size: 18px;
-  font-family: 'Noto Sans KR', sans-serif;
-  font-weight: 500;
-  margin-bottom: 14px;
-`;
-
-const DetailContentFlow = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`;
-
-const DetailParagraph = styled.p`
-  font-size: 14px;
-  line-height: 1.8;
-  color: #555;
-  white-space: pre-wrap;
-`;
-
-const SizeTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    border-bottom: 1px solid #eee;
-    padding: 10px;
-    text-align: center;
-    font-size: 13px;
-  }
-
-  th {
-    background: #fafafa;
-    font-weight: 600;
-  }
-`;
-
-const KeyInfoList = styled.ul`
-  list-style: disc;
-  padding-left: 20px;
-  color: #444;
-
-  li {
-    font-size: 14px;
-    line-height: 1.8;
-  }
 `;

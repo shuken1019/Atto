@@ -5,6 +5,7 @@ export type CategoryType = 'top' | 'bottom' | 'outer' | 'acc';
 
 // 상품 색상/사이즈 옵션 인터페이스
 export interface IProductVariant {
+  colorId?: number;
   color: string;
   colorCode: string;
   sizes: string[];
