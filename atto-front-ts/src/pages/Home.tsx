@@ -7,25 +7,77 @@ import { getProducts } from '../services/productService';
 // ⭐️ 타입 import 시 type 키워드 사용
 import type { IProduct } from '../types/product'; 
 import { MainBannerSVG } from '../components/common/Placeholders';
+
+const BANNER_STORAGE_KEY = 'atto_banner_settings';
+
+type BannerSettings = {
+  mainText: string;
+  seasonText: string;
+  imageDataUrl: string;
+};
+
 const Home: React.FC = () => {
   const [products, setProducts] = useState<IProduct[]>([]);
+  const [bannerSettings, setBannerSettings] = useState<BannerSettings | null>(null);
 
   useEffect(() => {
     // 상품 데이터를 가져옵니다.
     getProducts().then((data) => setProducts(data));
   }, []);
 
+  useEffect(() => {
+    const loadBanner = () => {
+      const raw = localStorage.getItem(BANNER_STORAGE_KEY);
+      if (!raw) {
+        setBannerSettings(null);
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(raw) as Partial<BannerSettings>;
+        setBannerSettings({
+          mainText: parsed.mainText ?? 'ESSENTIALS',
+          seasonText: parsed.seasonText ?? '',
+          imageDataUrl: parsed.imageDataUrl ?? '',
+        });
+      } catch {
+        setBannerSettings(null);
+      }
+    };
+
+    loadBanner();
+    window.addEventListener('banner-updated', loadBanner);
+    window.addEventListener('storage', loadBanner);
+
+    return () => {
+      window.removeEventListener('banner-updated', loadBanner);
+      window.removeEventListener('storage', loadBanner);
+    };
+  }, []);
+
   // 데이터를 용도에 맞게 필터링
   const bestSellers = products;
   const newArrivals = products.filter(p => p.isNew);
   const collections = products;
+  const mainText = bannerSettings?.mainText?.trim() || 'ESSENTIALS';
+  const seasonText = bannerSettings?.seasonText?.trim() || '';
+  const hasCustomImage = Boolean(bannerSettings?.imageDataUrl);
 
   return (
     <HomePageContainer>
       {/* 메인 배너 섹션 */}
       <MainBanner>
-        {/* ⭐️ 2. img 태그 대신 컴포넌트 사용 */}
-        <MainBannerSVG />
+        {hasCustomImage ? (
+          <img src={bannerSettings?.imageDataUrl} alt="메인 배너" />
+        ) : (
+          <MainBannerSVG />
+        )}
+        {hasCustomImage && (
+          <BannerOverlay>
+            <h2>{mainText}</h2>
+            {seasonText.length > 0 && <p>{seasonText}</p>}
+          </BannerOverlay>
+        )}
       </MainBanner>
 
       {/* 컨텐츠 영역 */}
@@ -49,6 +101,7 @@ const HomePageContainer = styled.div`
 `;
 
 const MainBanner = styled.div`
+  position: relative;
   width: 100%;
   margin-bottom: 60px;
   
@@ -62,6 +115,43 @@ const MainBanner = styled.div`
 
   @media (max-width: 640px) {
     margin-bottom: 36px;
+  }
+`;
+
+const BannerOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.38);
+
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 80px;
+    letter-spacing: 8px;
+    line-height: 1.1;
+  }
+
+  p {
+    margin-top: 8px;
+    font-size: 24px;
+    letter-spacing: 3px;
+  }
+
+  @media (max-width: 768px) {
+    h2 {
+      font-size: 44px;
+      letter-spacing: 4px;
+    }
+
+    p {
+      font-size: 16px;
+      letter-spacing: 2px;
+    }
   }
 `;
 

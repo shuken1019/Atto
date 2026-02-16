@@ -54,6 +54,12 @@ const AdminWrapper = styled.div`
   display: flex;
   min-height: 100vh;
   background-color: #fcfcfc;
+  font-family: 'Noto Sans KR', sans-serif;
+
+  h1, h2, h3, h4, h5, h6,
+  p, span, a, button, input, textarea, select, th, td, label {
+    font-family: 'Noto Sans KR', sans-serif;
+  }
 `;
 
 const Sidebar = styled.aside`

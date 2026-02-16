@@ -181,36 +181,36 @@ const ItemsSection = styled.div`
 `;
 
 const TableHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.6fr;
+  align-items: center;
   border-bottom: 1px solid #1a1a1a;
   padding-bottom: 15px;
   margin-bottom: 20px;
   font-size: 13px;
   text-transform: uppercase;
   color: #666;
-  
-  span:nth-child(1) { flex: 2; }
-  span:nth-child(2) { flex: 1; text-align: center; }
-  span:nth-child(3) { flex: 0.5; text-align: right; }
+
+  span:nth-child(2) { text-align: center; }
+  span:nth-child(3) { text-align: right; }
   
   @media (max-width: 600px) { display: none; }
 `;
 
 const CartItem = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.6fr;
   align-items: center;
   padding: 24px 0;
   border-bottom: 1px solid #eee;
   
   @media (max-width: 600px) {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
     gap: 20px;
   }
 `;
 
 const ItemInfo = styled.div`
-  flex: 2;
   display: flex;
   gap: 20px;
   
@@ -246,7 +246,6 @@ const RemoveBtn = styled.button`
 `;
 
 const QuantityControl = styled.div`
-  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -265,10 +264,13 @@ const QuantityControl = styled.div`
 `;
 
 const ItemPrice = styled.div`
-  flex: 0.5;
   text-align: right;
   font-size: 15px;
   font-weight: 600;
+
+  @media (max-width: 600px) {
+    text-align: left;
+  }
 `;
 
 const SummarySection = styled.div`
