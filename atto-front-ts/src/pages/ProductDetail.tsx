@@ -2,19 +2,23 @@
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getProductById } from '../services/productService';
 import type { IProduct } from '../types/product';
 import { ProductImageSVG } from '../components/common/Placeholders';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>(); // URL에서 id 가져오기
+  const navigate = useNavigate();
   const [product, setProduct] = useState<IProduct | null>(null);
   const [loading, setLoading] = useState(true);
 
   // 옵션 상태 관리
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [isScrapped, setIsScrapped] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -45,7 +49,36 @@ const ProductDetail: React.FC = () => {
       alert('옵션을 선택해주세요.');
       return;
     }
-    alert(`${product.name} (${selectedColor}, ${selectedSize}) 장바구니에 담겼습니다!`);
+    setIsCartModalOpen(true);
+  };
+
+  const shareUrl = window.location.href;
+
+  const handleCopyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('링크가 복사되었습니다.');
+    } catch {
+      alert('복사에 실패했어요.');
+    }
+  };
+
+  const openShareWindow = (type: 'line' | 'band' | 'naver' | 'facebook' | 'x') => {
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedTitle = encodeURIComponent(product.name);
+    const map: Record<typeof type, string> = {
+      line: `https://social-plugins.line.me/lineit/share?url=${encodedUrl}`,
+      band: `https://band.us/plugin/share?body=${encodedTitle}%20${encodedUrl}&route=${encodedUrl}`,
+      naver: `https://share.naver.com/web/shareView?url=${encodedUrl}&title=${encodedTitle}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
+    };
+
+    window.open(map[type], '_blank', 'width=720,height=760');
+  };
+
+  const handleScrap = () => {
+    setIsScrapped((prev) => !prev);
   };
 
   return (
@@ -63,7 +96,17 @@ const ProductDetail: React.FC = () => {
 
         <InfoSection>
           <CategoryLabel>{product.category.toUpperCase()}</CategoryLabel>
-          <ProductName>{product.name}</ProductName>
+          <NameRow>
+            <ProductName>{product.name}</ProductName>
+            <ShareBtn type="button" onClick={() => setIsShareOpen(true)} aria-label="공유하기">
+              <ShareIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="18" cy="5" r="2.6" />
+                <circle cx="6" cy="12" r="2.6" />
+                <circle cx="18" cy="19" r="2.6" />
+                <path d="M8.2 10.9L15.8 6.1M8.2 13.1l7.6 4.8" />
+              </ShareIcon>
+            </ShareBtn>
+          </NameRow>
           <Price>₩{product.price.toLocaleString()}</Price>
 
           <Description>
@@ -114,10 +157,13 @@ const ProductDetail: React.FC = () => {
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn onClick={handleAddToCart}>
-              ADD TO CART
-            </AddToCartBtn>
-            <BuyNowBtn>BUY NOW</BuyNowBtn>
+            <AddToCartBtn type="button">구매하기</AddToCartBtn>
+            <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
+            <ScrapBtn type="button" $active={isScrapped} onClick={handleScrap}>
+              <HeartIcon viewBox="0 0 24 24" fill={isScrapped ? '#ef4444' : 'none'} stroke={isScrapped ? '#ef4444' : 'currentColor'} strokeWidth="1.9">
+                <path d="M12 20.5S4 15.2 4 9.4A4.4 4.4 0 0 1 8.4 5c1.5 0 2.9.7 3.6 1.8A4.4 4.4 0 0 1 15.6 5 4.4 4.4 0 0 1 20 9.4c0 5.8-8 11.1-8 11.1Z" />
+              </HeartIcon>
+            </ScrapBtn>
           </ButtonGroup>
 
           <ExtraInfo>
@@ -128,8 +174,9 @@ const ProductDetail: React.FC = () => {
       </Container>
 
       <DetailSection>
-        <DetailTitle>추가 이미지 / 동영상</DetailTitle>
-        <MediaGrid>
+        <DetailTitle>상세 콘텐츠</DetailTitle>
+        <DetailContentFlow>
+          <DetailParagraph>{product.detailDescription}</DetailParagraph>
           {product.detailMedia.map((media, index) => (
             <MediaCard key={`${media.url}-${index}`}>
               {media.type === 'video' ? (
@@ -141,12 +188,7 @@ const ProductDetail: React.FC = () => {
               )}
             </MediaCard>
           ))}
-        </MediaGrid>
-      </DetailSection>
-
-      <DetailSection>
-        <DetailTitle>상세 설명</DetailTitle>
-        <DetailParagraph>{product.detailDescription}</DetailParagraph>
+        </DetailContentFlow>
       </DetailSection>
 
       <DetailSection>
@@ -181,6 +223,69 @@ const ProductDetail: React.FC = () => {
           ))}
         </KeyInfoList>
       </DetailSection>
+
+      {isShareOpen && (
+        <>
+          <ShareBackdrop onClick={() => setIsShareOpen(false)} />
+          <ShareModal>
+            <ShareHead>
+              <h4>공유하기</h4>
+              <button type="button" onClick={() => setIsShareOpen(false)}>×</button>
+            </ShareHead>
+
+            <ShareChannels>
+              <ShareChannel type="button" onClick={() => openShareWindow('line')}>
+                <CircleIcon $bg="#22c55e">L</CircleIcon>
+                <span>라인</span>
+              </ShareChannel>
+              <ShareChannel type="button" onClick={() => openShareWindow('band')}>
+                <CircleIcon $bg="#6b7280">B</CircleIcon>
+                <span>밴드</span>
+              </ShareChannel>
+              <ShareChannel type="button" onClick={() => openShareWindow('naver')}>
+                <CircleIcon $bg="#16a34a">N</CircleIcon>
+                <span>네이버</span>
+              </ShareChannel>
+              <ShareChannel type="button" onClick={() => openShareWindow('facebook')}>
+                <CircleIcon $bg="#3b82f6">f</CircleIcon>
+                <span>페이스북</span>
+              </ShareChannel>
+              <ShareChannel type="button" onClick={() => openShareWindow('x')}>
+                <CircleIcon $bg="#111827">X</CircleIcon>
+                <span>X</span>
+              </ShareChannel>
+            </ShareChannels>
+
+            <ShareCopyRow>
+              <input value={shareUrl} readOnly />
+              <button type="button" onClick={handleCopyShareUrl}>복사</button>
+            </ShareCopyRow>
+          </ShareModal>
+        </>
+      )}
+
+      {isCartModalOpen && (
+        <>
+          <CartBackdrop onClick={() => setIsCartModalOpen(false)} />
+          <CartModal>
+            <CartMessage>선택하신 상품을 장바구니에 담았습니다.</CartMessage>
+            <CartActions>
+              <CartActionBtn type="button" onClick={() => setIsCartModalOpen(false)}>
+                계속쇼핑
+              </CartActionBtn>
+              <CartActionBtn
+                type="button"
+                onClick={() => {
+                  setIsCartModalOpen(false);
+                  navigate('/cart');
+                }}
+              >
+                장바구니
+              </CartActionBtn>
+            </CartActions>
+          </CartModal>
+        </>
+      )}
     </PageWrapper>
   );
 };
@@ -253,6 +358,30 @@ const ProductName = styled.h1`
     font-size: 28px;
     margin-bottom: 14px;
   }
+`;
+
+const NameRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const ShareBtn = styled.button`
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ShareIcon = styled.svg`
+  width: 20px;
+  height: 20px;
 `;
 
 const Price = styled.p`
@@ -427,6 +556,181 @@ const BuyNowBtn = styled.button`
   }
 `;
 
+const ScrapBtn = styled.button<{ $active?: boolean }>`
+  width: 82px;
+  height: 56px;
+  border: 1px solid ${(props) => (props.$active ? '#111827' : '#ddd')};
+  background: #fff;
+  color: ${(props) => (props.$active ? '#111827' : '#555')};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (max-width: 768px) {
+    width: 82px;
+    height: 52px;
+  }
+`;
+
+const HeartIcon = styled.svg`
+  width: 22px;
+  height: 22px;
+`;
+
+const ShareBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 90;
+`;
+
+const ShareModal = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 400px);
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+  padding: 18px 18px 16px;
+  z-index: 100;
+`;
+
+const ShareHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+
+  h4 {
+    font-size: 28px;
+    color: #1f2937;
+    font-weight: 700;
+  }
+
+  button {
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-size: 26px;
+    cursor: pointer;
+    line-height: 1;
+  }
+`;
+
+const ShareChannels = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 10px;
+  margin-bottom: 16px;
+`;
+
+const ShareChannel = styled.button`
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+
+  span {
+    font-size: 13px;
+    color: #4b5563;
+  }
+`;
+
+const CircleIcon = styled.div<{ $bg: string }>`
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: ${(props) => props.$bg};
+  color: #fff;
+  font-size: 34px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ShareCopyRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto;
+  border: 1px solid #d1d5db;
+
+  input {
+    border: none;
+    height: 40px;
+    padding: 0 12px;
+    font-size: 13px;
+    color: #4b5563;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  button {
+    border: none;
+    border-left: 1px solid #d1d5db;
+    background: #f9fafb;
+    color: #374151;
+    font-size: 14px;
+    width: 68px;
+    cursor: pointer;
+  }
+`;
+
+const CartBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 105;
+`;
+
+const CartModal = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 420px);
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  z-index: 110;
+`;
+
+const CartMessage = styled.p`
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #333;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const CartActions = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+`;
+
+const CartActionBtn = styled.button`
+  height: 62px;
+  border: none;
+  background: #fff;
+  color: #333;
+  font-size: 16px;
+  cursor: pointer;
+
+  &:first-child {
+    border-right: 1px solid #e5e7eb;
+  }
+`;
+
 const ExtraInfo = styled.div`
   font-size: 13px;
   color: #888;
@@ -459,31 +763,23 @@ const DetailTitle = styled.h3`
   margin-bottom: 14px;
 `;
 
-const MediaGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 520px) {
-    grid-template-columns: 1fr;
-  }
+const DetailContentFlow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 `;
 
 const MediaCard = styled.div`
   width: 100%;
-  aspect-ratio: 3 / 4;
   background: #f4f4f4;
   overflow: hidden;
 
   img,
   video {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
+    display: block;
+    object-fit: contain;
   }
 `;
 

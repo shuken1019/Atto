@@ -147,7 +147,7 @@ const WithdrawButton = styled.button`
   text-align: left;
   background: none;
   border: none;
-  color: #c44c4c;
+  color: #999;
   font-size: 14px;
   margin-top: 8px;
   cursor: pointer;
@@ -155,7 +155,7 @@ const WithdrawButton = styled.button`
 
   &:hover {
     text-decoration: underline;
-    color: #b03838;
+    color: #999;
   }
 `;
 

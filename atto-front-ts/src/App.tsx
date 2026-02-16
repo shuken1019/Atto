@@ -25,8 +25,13 @@ import AdminLayout from './pages/admin/AdminLayout';
 import UserManagement from './pages/admin/UserManagement';
 import Dashboard from './pages/admin/Dashboard';
 import ProductUpload from './pages/admin/ProductUpload';
+import ProductDirectWrite from './pages/admin/ProductDirectWrite';
+import ProductHtmlWrite from './pages/admin/ProductHtmlWrite';
 import ProductManagement from './pages/admin/ProductManagement';
 import OrderManagement from './pages/admin/OrderManagement';
+import OrderCreate from './pages/admin/OrderCreate';
+import OrderCreatedCheck from './pages/admin/OrderCreatedCheck';
+import OrderCreatedDetail from './pages/admin/OrderCreatedDetail';
 import BannerManagement from './pages/admin/BannerManagement';
 
 const isAdminUser = () => {
@@ -49,7 +54,6 @@ const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) =>
 };
 
 const GlobalStyle = createGlobalStyle`
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Noto+Sans+KR:wght@300;400;500&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { min-height: 100%; }
   body { background-color: #F6F4EF; color: #1A1A1A; font-family: 'Noto Sans KR', sans-serif; line-height: 1.6; min-width: 320px; overflow-x: hidden; }
@@ -93,8 +97,14 @@ const App: React.FC = () => {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="products" element={<ProductManagement />} />
+            <Route path="products/:id/edit" element={<ProductHtmlWrite />} />
             <Route path="upload" element={<ProductUpload />} />
+            <Route path="upload/direct-write" element={<ProductDirectWrite />} />
+            <Route path="upload/html-write" element={<ProductHtmlWrite />} />
             <Route path="orders" element={<OrderManagement />} />
+            <Route path="orders/create" element={<OrderCreate />} />
+            <Route path="orders/created" element={<OrderCreatedCheck />} />
+            <Route path="orders/created/:orderNo" element={<OrderCreatedDetail />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="banners" element={<BannerManagement />} />
           </Route>
