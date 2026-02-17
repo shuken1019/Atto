@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { API_BASE_URL } from '../../config/api';
 
 type StoredUser = {
   userId: number;
@@ -61,7 +62,7 @@ const EditProfile: React.FC = () => {
       }
 
       try {
-        const response = await fetch(`http://127.0.0.1:4000/api/users/${storedUser.userId}/profile`);
+        const response = await fetch(`${API_BASE_URL}/api/users/${storedUser.userId}/profile`);
         const result: ProfileResponse = await response.json();
 
         if (!response.ok || !result.ok || !result.user) {
@@ -112,7 +113,7 @@ const EditProfile: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`http://127.0.0.1:4000/api/users/${storedUser.userId}/profile`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${storedUser.userId}/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

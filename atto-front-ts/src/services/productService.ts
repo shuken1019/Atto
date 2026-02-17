@@ -1,7 +1,8 @@
 ﻿import type { CategoryType, IProduct } from '../types/product';
+import { API_BASE_URL } from '../config/api';
 import { mockProducts } from '../mocks/product';
 
-const API_BASE = 'http://127.0.0.1:4000';
+const API_BASE = API_BASE_URL;
 
 type AdminProductRow = {
   productId: number;

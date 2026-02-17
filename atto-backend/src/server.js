@@ -13,18 +13,31 @@ const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST ?? "127.0.0.1",
+  host: process.env.DB_HOST ?? "atto.cn602qo04clr.ap-northeast-2.rds.amazonaws.com",
   port: Number(process.env.DB_PORT ?? 3306),
-  user: process.env.DB_USER ?? "root",
-  password: process.env.DB_PASSWORD ?? "12345",
+  user: process.env.DB_USER ?? "admin",
+  password: process.env.DB_PASSWORD ?? "atto12345",
   database: process.env.DB_NAME ?? "atto",
   waitForConnections: true,
   connectionLimit: 10,
 });
 
+const allowedOrigins = String(
+  process.env.CORS_ORIGIN ?? "http://3.37.232.202:3001,http://http://3.37.232.202"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
   })
 );
 app.use(express.json());
@@ -1301,11 +1314,5 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 app.listen(port, () => {
-  console.log(`Backend running on http://127.0.0.1:${port}`);
+  console.log(`Backend running on http://atto.cn602qo04clr.ap-northeast-2.rds.amazonaws.com:${port}`);
 });
-
-
-
-
-
-

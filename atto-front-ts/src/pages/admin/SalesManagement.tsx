@@ -26,14 +26,14 @@ const SalesManagement: React.FC = () => {
   return (
     <Page>
       <HeaderBar>
-        <h2>기간별 분석</h2>
+        <h2>매출</h2>
         <button type="button">참고사항</button>
       </HeaderBar>
 
       <BodyPanel>
         <Card>
           <CardTop>
-            <h3>오늘 자 현황</h3>
+            <h3>오늘 매출 현황</h3>
             <RefreshBtn type="button">새로고침</RefreshBtn>
           </CardTop>
 
@@ -128,8 +128,8 @@ const HeaderBar = styled.div`
   padding: 0 24px;
 
   h2 {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 30px;
+    font-weight: 500;
     color: #111827;
   }
 
@@ -143,7 +143,7 @@ const HeaderBar = styled.div`
 `;
 
 const BodyPanel = styled.div`
-  background: #dfe4ec;
+  background: #f7f5f0;
   min-height: calc(100vh - 86px);
   padding: 24px;
 `;
@@ -151,7 +151,7 @@ const BodyPanel = styled.div`
 const Card = styled.section`
   background: #fff;
   border: 1px solid #ece7de;
-  border-radius: 16px;
+  border-radius: 0;
   padding: 24px;
   margin-bottom: 18px;
 `;
@@ -163,21 +163,21 @@ const CardTop = styled.div`
   margin-bottom: 16px;
 
   h3 {
-    font-size: 36px;
-    font-weight: 700;
+    font-size: 26px;
+    font-weight: 500;
     color: #111827;
   }
 `;
 
 const RefreshBtn = styled.button`
-  height: 50px;
+  height: 44px;
   padding: 0 18px;
   border: 1px solid #d9d9d9;
-  border-radius: 14px;
+  border-radius: 0;
   background: #fff;
-  color: #4b5563;
-  font-size: 15px;
-  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
@@ -196,30 +196,31 @@ const MetricGrid = styled.div`
 `;
 
 const MetricItem = styled.div`
-  min-height: 110px;
-  border-radius: 16px;
-  background: #f3f4f6;
+  min-height: 102px;
+  border-radius: 0;
+  background: #fcfbf8;
+  border: 1px solid #ece7de;
   padding: 18px 20px;
 
   span {
-    color: #374151;
-    font-size: 16px;
+    color: #555;
+    font-size: 14px;
   }
 
   strong {
     display: block;
     margin-top: 8px;
     color: #111827;
-    font-size: 44px;
+    font-size: 34px;
     line-height: 1;
-    font-weight: 800;
+    font-weight: 700;
   }
 `;
 
 const CardTitle = styled.h3`
-  font-size: 42px;
+  font-size: 26px;
   color: #111827;
-  font-weight: 700;
+  font-weight: 500;
   margin-bottom: 16px;
 `;
 
@@ -240,14 +241,14 @@ const ToggleWrap = styled.div`
 `;
 
 const ToggleBtn = styled.button<{ $active?: boolean }>`
-  height: 52px;
+  height: 44px;
   padding: 0 16px;
   border: 1px solid ${(props) => (props.$active ? '#111827' : '#d9d9d9')};
-  border-radius: 14px;
-  background: ${(props) => (props.$active ? '#111827' : '#fff')};
+  border-radius: 0;
+  background: ${(props) => (props.$active ? '#333' : '#fff')};
   color: ${(props) => (props.$active ? '#fff' : '#333')};
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
@@ -258,30 +259,30 @@ const Filters = styled.div`
 `;
 
 const Select = styled.select`
-  height: 52px;
+  height: 44px;
   min-width: 116px;
   border: 1px solid #d9d9d9;
-  border-radius: 14px;
+  border-radius: 0;
   padding: 0 12px;
-  font-size: 17px;
+  font-size: 14px;
   background: #fff;
 `;
 
 const IconBtn = styled.button`
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   border: 1px solid #d9d9d9;
-  border-radius: 14px;
+  border-radius: 0;
   background: #fff;
   color: #6b7280;
-  font-size: 20px;
+  font-size: 16px;
   cursor: pointer;
 `;
 
 const TableWrap = styled.div`
   overflow-x: auto;
   border: 1px solid #ece7de;
-  border-radius: 12px;
+  border-radius: 0;
 `;
 
 const DataTable = styled.table`
@@ -295,7 +296,7 @@ const DataTable = styled.table`
     padding: 14px 12px;
     text-align: center;
     white-space: nowrap;
-    font-size: 15px;
+    font-size: 14px;
     color: #1f2937;
   }
 

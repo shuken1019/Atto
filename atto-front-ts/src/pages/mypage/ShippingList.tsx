@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { API_BASE_URL } from '../../config/api';
 
 type StoredUser = {
   userId: number;
@@ -37,7 +38,7 @@ const ShippingList: React.FC = () => {
       }
 
       try {
-        const response = await fetch(`http://127.0.0.1:4000/api/users/${user.userId}/addresses`);
+        const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/addresses`);
         const result = await response.json();
 
         if (!response.ok || !result.ok) {

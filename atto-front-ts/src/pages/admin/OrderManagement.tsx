@@ -47,12 +47,16 @@ const OrderManagement: React.FC = () => {
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
-  const [isCreatedOrdersModalOpen, setIsCreatedOrdersModalOpen] = useState(false);
+  const [isCreatedOrdersModalManuallyOpen, setIsCreatedOrdersModalManuallyOpen] = useState(false);
   const [createdOrderQuery, setCreatedOrderQuery] = useState('');
-  const [createdOrders, setCreatedOrders] = useState<CreatedOrder[]>(initialCreatedOrders);
+  const [createdOrders] = useState<CreatedOrder[]>(initialCreatedOrders);
   const location = useLocation();
   const navigate = useNavigate();
   const excelTemplatePath = '/invoice_excel_20260216053404.xlsx';
+  const routeState = (location.state ?? {}) as {
+    openCreatedOrdersModal?: boolean;
+    createdOrder?: CreatedOrder;
+  };
 
   const counts = useMemo(
     () => ({
@@ -68,37 +72,30 @@ const OrderManagement: React.FC = () => {
     [],
   );
 
+  const mergedCreatedOrders = useMemo(() => {
+    if (!routeState.createdOrder) return createdOrders;
+    if (createdOrders.some((item) => item.orderNo === routeState.createdOrder?.orderNo)) return createdOrders;
+    return [routeState.createdOrder, ...createdOrders];
+  }, [createdOrders, routeState.createdOrder]);
+
+  const isCreatedOrdersModalOpen =
+    isCreatedOrdersModalManuallyOpen || Boolean(routeState.openCreatedOrdersModal);
+
   const filteredCreatedOrders = useMemo(() => {
     const keyword = createdOrderQuery.trim().toLowerCase();
-    if (!keyword) return createdOrders;
-    return createdOrders.filter(
+    if (!keyword) return mergedCreatedOrders;
+    return mergedCreatedOrders.filter(
       (order) =>
         order.orderNo.toLowerCase().includes(keyword) ||
         order.buyerName.toLowerCase().includes(keyword),
     );
-  }, [createdOrderQuery, createdOrders]);
+  }, [createdOrderQuery, mergedCreatedOrders]);
 
   useEffect(() => {
-    const state = (location.state ?? {}) as {
-      openCreatedOrdersModal?: boolean;
-      createdOrder?: CreatedOrder;
-    };
-
-    if (state.createdOrder) {
-      setCreatedOrders((prev) => {
-        if (prev.some((item) => item.orderNo === state.createdOrder?.orderNo)) return prev;
-        return [state.createdOrder as CreatedOrder, ...prev];
-      });
-    }
-
-    if (state.openCreatedOrdersModal) {
-      setIsCreatedOrdersModalOpen(true);
-    }
-
-    if (state.createdOrder || state.openCreatedOrdersModal) {
+    if (routeState.createdOrder || routeState.openCreatedOrdersModal) {
       navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, navigate, routeState.createdOrder, routeState.openCreatedOrdersModal]);
 
   const downloadInvoiceTemplate = () => {
     const link = document.createElement('a');
@@ -135,7 +132,7 @@ const OrderManagement: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsCreateMenuOpen(false);
-                    setIsCreatedOrdersModalOpen(true);
+                    setIsCreatedOrdersModalManuallyOpen(true);
                   }}
                 >
                   생성된 주문 확인
@@ -325,7 +322,7 @@ const OrderManagement: React.FC = () => {
         <>
           <ModalBackdrop
             onClick={() => {
-              setIsCreatedOrdersModalOpen(false);
+              setIsCreatedOrdersModalManuallyOpen(false);
               setIsCreateMenuOpen(false);
             }}
           />
@@ -362,7 +359,7 @@ const OrderManagement: React.FC = () => {
                     type="button"
                     $striped={idx % 2 === 1}
                     onClick={() => {
-                      setIsCreatedOrdersModalOpen(false);
+                      setIsCreatedOrdersModalManuallyOpen(false);
                       navigate(`/admin/orders/created/${order.orderNo}`, { state: order });
                     }}
                   >
@@ -383,7 +380,7 @@ const OrderManagement: React.FC = () => {
             </CreatedTableWrap>
 
             <CreatedModalFooter>
-              <CloseBottomBtn type="button" onClick={() => setIsCreatedOrdersModalOpen(false)}>닫기</CloseBottomBtn>
+              <CloseBottomBtn type="button" onClick={() => setIsCreatedOrdersModalManuallyOpen(false)}>닫기</CloseBottomBtn>
             </CreatedModalFooter>
           </CreatedModal>
         </>

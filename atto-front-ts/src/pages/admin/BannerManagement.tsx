@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 const BANNER_STORAGE_KEY = 'atto_banner_settings';
@@ -9,24 +9,33 @@ type BannerSettings = {
   imageDataUrl: string;
 };
 
-const BannerManagement: React.FC = () => {
-  const [mainText, setMainText] = useState('ESSENTIALS');
-  const [seasonText, setSeasonText] = useState('');
-  const [imageDataUrl, setImageDataUrl] = useState('');
+const getInitialBannerSettings = (): BannerSettings => {
+  const fallback: BannerSettings = {
+    mainText: 'ESSENTIALS',
+    seasonText: '',
+    imageDataUrl: '',
+  };
 
-  useEffect(() => {
+  try {
     const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) return fallback;
 
-    try {
-      const parsed = JSON.parse(raw) as Partial<BannerSettings>;
-      setMainText(parsed.mainText ?? 'ESSENTIALS');
-      setSeasonText(parsed.seasonText ?? '');
-      setImageDataUrl(parsed.imageDataUrl ?? '');
-    } catch {
-      // invalid localStorage data
-    }
-  }, []);
+    const parsed = JSON.parse(raw) as Partial<BannerSettings>;
+    return {
+      mainText: parsed.mainText ?? fallback.mainText,
+      seasonText: parsed.seasonText ?? fallback.seasonText,
+      imageDataUrl: parsed.imageDataUrl ?? fallback.imageDataUrl,
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+const BannerManagement: React.FC = () => {
+  const [initialSettings] = useState(() => getInitialBannerSettings());
+  const [mainText, setMainText] = useState(initialSettings.mainText);
+  const [seasonText, setSeasonText] = useState(initialSettings.seasonText);
+  const [imageDataUrl, setImageDataUrl] = useState(initialSettings.imageDataUrl);
 
   const handleChangeImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

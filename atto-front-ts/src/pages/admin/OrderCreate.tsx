@@ -695,7 +695,7 @@ export default OrderCreate;
 const Page = styled.div`
   margin: -40px;
   min-height: 100vh;
-  background: #dfe4ec;
+  background: #f7f5f0;
   padding: 26px;
 `;
 
@@ -707,17 +707,17 @@ const ContentWrap = styled.div`
 const BackLink = styled.button`
   border: none;
   background: transparent;
-  color: #4b5563;
-  font-size: 15px;
+  color: #555;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
 const Title = styled.h2`
-  margin-top: 10px;
-  margin-bottom: 20px;
-  font-size: 22px;
+  margin: 10px 0 20px;
+  font-size: 30px;
   color: #111827;
-  font-weight: 800;
+  font-weight: 500;
 `;
 
 const Layout = styled.div`
@@ -755,7 +755,7 @@ const StepHead = styled.div`
 
   h3 {
     font-size: 16px;
-    font-weight: 800;
+    font-weight: 700;
     color: #111827;
   }
 `;
@@ -780,24 +780,25 @@ const StepCircle = styled.div<{ $state: 'done' | 'current' | 'todo' }>`
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  background: ${(props) => (props.$state === 'done' ? '#b9f2c2' : props.$state === 'current' ? '#111827' : '#f3f4f6')};
-  color: ${(props) => (props.$state === 'todo' ? '#9ca3af' : '#fff')};
-  border: ${(props) => (props.$state === 'todo' ? '1px solid #d1d5db' : 'none')};
+  background: ${(props) => (props.$state === 'done' ? '#d1fae5' : props.$state === 'current' ? '#333' : '#fcfbf8')};
+  color: ${(props) => (props.$state === 'todo' ? '#999' : '#fff')};
+  border: ${(props) => (props.$state === 'todo' ? '1px solid #d9d9d9' : 'none')};
 `;
 
 const EditBtn = styled.button`
   margin-left: auto;
   border: none;
   background: transparent;
-  color: #4b5563;
-  font-size: 14px;
-  font-weight: 700;
+  color: #555;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
 const StepCard = styled.div`
   background: #fff;
-  border-radius: 16px;
+  border: 1px solid #ece7de;
+  border-radius: 0;
   padding: 20px;
 `;
 
@@ -813,14 +814,15 @@ const SummaryRow = styled.div`
   padding: 5px 0;
 
   span {
-    color: #4b5563;
+    color: #666;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   strong {
     color: #111827;
     font-size: 14px;
+    font-weight: 500;
   }
 `;
 
@@ -833,7 +835,7 @@ const FieldRow = styled.div`
 
 const FieldLabel = styled.div`
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: #111827;
   padding-top: 8px;
 `;
@@ -850,7 +852,7 @@ const OptionRow = styled.div`
 
 const OptionLabel = styled.div`
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: #111827;
 `;
 
@@ -869,7 +871,7 @@ const InlineOptions = styled.div`
     display: inline-flex;
     gap: 6px;
     font-size: 14px;
-    color: #1f2937;
+    color: #333;
     align-items: center;
   }
 `;
@@ -882,12 +884,12 @@ const MemberSearchRow = styled.div`
 
   input {
     width: 100%;
-    border: 1px solid #cfd6e0;
-    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 0;
     height: 46px;
     padding: 0 12px;
     font-size: 14px;
-    background: #f8fafc;
+    background: #fff;
   }
 `;
 
@@ -908,16 +910,16 @@ const Field = styled.div`
     display: block;
     margin-bottom: 7px;
     font-size: 14px;
-    font-weight: 700;
-    color: #111827;
+    font-weight: 500;
+    color: #333;
   }
 
   input,
   select,
   textarea {
     width: 100%;
-    border: 1px solid #cfd6e0;
-    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 0;
     padding: 12px 14px;
     font-size: 14px;
     background: #fff;
@@ -931,7 +933,7 @@ const Field = styled.div`
 const ErrorText = styled.p`
   margin-top: 6px;
   font-size: 13px;
-  color: #ef4444;
+  color: #d14343;
 `;
 
 const AddressRow = styled.div`
@@ -942,12 +944,12 @@ const AddressRow = styled.div`
 
 const MiniBtn = styled.button`
   height: 46px;
-  border: 1px solid #cfd6e0;
-  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   background: #fff;
-  color: #374151;
+  color: #333;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 `;
 
@@ -959,8 +961,8 @@ const SearchRow = styled.div`
 
 const SearchInput = styled.input`
   width: 100%;
-  border: 1px solid #cfd6e0;
-  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   height: 52px;
   padding: 0 14px;
   font-size: 14px;
@@ -968,37 +970,39 @@ const SearchInput = styled.input`
 
 const SearchBtn = styled.button`
   height: 52px;
-  border: 1px solid #cfd6e0;
-  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   background: #fff;
   font-size: 14px;
-  font-weight: 700;
-  color: #374151;
+  font-weight: 500;
+  color: #333;
   cursor: pointer;
 `;
 
 const EmptyBox = styled.div`
   margin-top: 12px;
   height: 180px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 0;
+  border: 1px solid #ece7de;
+  background: #fcfbf8;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
+  color: #666;
 
   p {
     margin-top: 8px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
   }
 `;
 
 const ProductCard = styled.div`
   margin-top: 12px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 0;
+  border: 1px solid #ece7de;
+  background: #fff;
   padding: 12px 12px 10px;
 `;
 
@@ -1016,7 +1020,7 @@ const ProductRow = styled.div`
 const ProductThumb = styled.div`
   width: 56px;
   height: 56px;
-  border-radius: 10px;
+  border-radius: 0;
   background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
 `;
 
@@ -1024,20 +1028,21 @@ const ProductMeta = styled.div`
   strong {
     font-size: 15px;
     color: #111827;
+    font-weight: 600;
   }
 
   p {
     margin-top: 4px;
     font-size: 13px;
-    color: #4b5563;
+    color: #666;
   }
 `;
 
 const QtyControl = styled.div`
   width: 150px;
   height: 68px;
-  border: 1px solid #d1d5db;
-  border-radius: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1046,7 +1051,7 @@ const QtyControl = styled.div`
 
 const QtyValue = styled.div`
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: #111827;
 `;
 
@@ -1061,14 +1066,14 @@ const QtyBtn = styled.button`
   height: 26px;
   border: none;
   background: transparent;
-  color: #6b7280;
+  color: #666;
   font-size: 12px;
   cursor: pointer;
 `;
 
 const ProductAmount = styled.div`
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   color: #111827;
 `;
 
@@ -1076,25 +1081,25 @@ const ProductCardActions = styled.div`
   margin-top: 10px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 `;
 
 const PriceChangeBtn = styled.button`
   border: none;
   background: transparent;
-  color: #4b5563;
-  font-size: 14px;
-  font-weight: 800;
+  color: #555;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
 const TrashBtn = styled.button`
   width: 36px;
   height: 36px;
-  border: none;
-  border-radius: 10px;
-  background: #f3f4f6;
-  color: #4b5563;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
+  background: #fff;
+  color: #555;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1109,7 +1114,7 @@ const TrashSvg = styled.svg`
 const BagIcon = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: 0;
   background: #d1d5db;
 `;
 
@@ -1122,30 +1127,31 @@ const WizardFooter = styled.div`
 const FooterNavBtn = styled.button<{ $primary?: boolean }>`
   min-width: 88px;
   height: 48px;
-  border: 1px solid ${(props) => (props.$primary ? '#111827' : '#d1d5db')};
-  border-radius: 12px;
-  background: ${(props) => (props.$primary ? '#111827' : '#fff')};
-  color: ${(props) => (props.$primary ? '#fff' : '#374151')};
+  border: 1px solid ${(props) => (props.$primary ? '#333' : '#d9d9d9')};
+  border-radius: 0;
+  background: ${(props) => (props.$primary ? '#333' : '#fff')};
+  color: ${(props) => (props.$primary ? '#fff' : '#333')};
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 
   &:disabled {
     border-color: #e5e7eb;
     background: #e5e7eb;
-    color: #9ca3af;
+    color: #999;
     cursor: not-allowed;
   }
 `;
 
 const AmountCard = styled.div`
   background: #fff;
-  border-radius: 16px;
+  border: 1px solid #ece7de;
+  border-radius: 0;
   padding: 18px;
 
   h4 {
-    font-size: 18px;
-    font-weight: 800;
+    font-size: 24px;
+    font-weight: 500;
     color: #111827;
     margin-bottom: 14px;
   }
@@ -1159,42 +1165,44 @@ const AmountRow = styled.div`
 
   span {
     font-size: 14px;
-    color: #1f2937;
-    font-weight: 700;
+    color: #333;
+    font-weight: 500;
   }
 
   strong {
-    font-size: 17px;
+    font-size: 28px;
     color: #111827;
+    font-weight: 700;
   }
 `;
 
 const AmountSub = styled.div`
-  background: #f3f4f6;
-  border-radius: 10px;
+  background: #fcfbf8;
+  border: 1px solid #ece7de;
+  border-radius: 0;
   height: 74px;
   padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 14px;
-  color: #4b5563;
+  color: #666;
 `;
 
 const CreateBtn = styled.button`
   width: 100%;
-  height: 62px;
+  height: 56px;
   border: none;
-  border-radius: 12px;
-  background: #111827;
+  border-radius: 0;
+  background: #333;
   color: #fff;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 
   &:disabled {
-    background: #d1d5db;
-    color: #9ca3af;
+    background: #d9d9d9;
+    color: #999;
     cursor: not-allowed;
   }
 `;
@@ -1202,7 +1210,7 @@ const CreateBtn = styled.button`
 const MemberModalBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.22);
+  background: rgba(17, 24, 39, 0.35);
   z-index: 80;
 `;
 
@@ -1214,7 +1222,8 @@ const MemberModal = styled.div`
   width: min(92vw, 540px);
   max-height: 82vh;
   background: #fff;
-  border-radius: 20px;
+  border: 1px solid #ece7de;
+  border-radius: 0;
   padding: 22px;
   overflow: auto;
   z-index: 90;
@@ -1232,9 +1241,9 @@ const PriceModal = styled(MemberModal)`
 `;
 
 const PriceModalTitle = styled.h3`
-  font-size: 17px;
+  font-size: 28px;
   color: #111827;
-  font-weight: 800;
+  font-weight: 500;
   margin-bottom: 16px;
 `;
 
@@ -1248,8 +1257,8 @@ const PricePreviewRow = styled.div`
 const PriceInputRow = styled.div`
   margin-top: 8px;
   height: 52px;
-  border: 1px solid #cfd6e0;
-  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   padding: 0 12px;
   display: flex;
   align-items: center;
@@ -1267,18 +1276,18 @@ const PriceInputRow = styled.div`
   }
 
   span {
-    color: #6b7280;
+    color: #666;
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 500;
   }
 `;
 
 const PriceResult = styled.div`
   margin-top: 16px;
   text-align: right;
-  font-size: 22px;
+  font-size: 42px;
   color: #111827;
-  font-weight: 800;
+  font-weight: 700;
 `;
 
 const PriceModalFooter = styled.div`
@@ -1295,8 +1304,8 @@ const MemberModalHead = styled.div`
   margin-bottom: 14px;
 
   h3 {
-    font-size: 17px;
-    font-weight: 800;
+    font-size: 22px;
+    font-weight: 600;
     color: #111827;
   }
 `;
@@ -1304,16 +1313,16 @@ const MemberModalHead = styled.div`
 const CloseBtn = styled.button`
   border: none;
   background: transparent;
-  color: #4b5563;
+  color: #555;
   font-size: 20px;
   cursor: pointer;
 `;
 
 const MemberSearchInputWrap = styled.div`
   height: 48px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  background: #fcfbf8;
+  border-radius: 0;
   padding: 0 12px;
   display: flex;
   align-items: center;
@@ -1332,7 +1341,7 @@ const MemberSearchInputWrap = styled.div`
 `;
 
 const SearchMark = styled.span`
-  color: #6b7280;
+  color: #777;
   font-size: 18px;
 `;
 
@@ -1353,7 +1362,7 @@ const ProductModalList = styled.div`
 `;
 
 const ProductModalItem = styled.div`
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid #ece7de;
   padding-bottom: 10px;
 `;
 
@@ -1368,22 +1377,24 @@ const ProductModalTop = styled.div`
 const ProductModalThumb = styled.div`
   width: 62px;
   height: 62px;
-  border-radius: 14px;
+  border-radius: 0;
   background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
 `;
 
 const ProductModalTitle = styled.strong`
   font-size: 17px;
   color: #111827;
+  font-weight: 500;
 `;
 
 const ProductMetaBadge = styled.span`
-  height: 36px;
+  height: 34px;
   padding: 0 12px;
-  border-radius: 18px;
-  background: #f3f4f6;
-  color: #6b7280;
-  font-size: 14px;
+  border: 1px solid #ece7de;
+  border-radius: 0;
+  background: #fcfbf8;
+  color: #666;
+  font-size: 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1391,10 +1402,10 @@ const ProductMetaBadge = styled.span`
 
 const ProductSelectRow = styled.button<{ $selected?: boolean }>`
   width: 100%;
-  border: none;
-  background: ${(props) => (props.$selected ? '#f8fafc' : '#fff')};
-  border-radius: 10px;
-  padding: 10px 10px;
+  border: 1px solid ${(props) => (props.$selected ? '#333' : '#ece7de')};
+  background: ${(props) => (props.$selected ? '#fcfbf8' : '#fff')};
+  border-radius: 0;
+  padding: 10px;
   display: grid;
   grid-template-columns: 36px 1fr auto;
   gap: 10px;
@@ -1410,27 +1421,27 @@ const ProductSelectRow = styled.button<{ $selected?: boolean }>`
   strong {
     font-size: 16px;
     color: #111827;
-    font-weight: 700;
+    font-weight: 600;
   }
 `;
 
 const CheckSquare = styled.div`
   width: 30px;
   height: 30px;
-  border: 2px solid #c7ced8;
-  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #111827;
-  font-weight: 800;
+  font-weight: 700;
 `;
 
 const MemberItem = styled.button`
   width: 100%;
-  border: none;
+  border: 1px solid #ece7de;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 10px;
   display: flex;
   align-items: center;
@@ -1439,7 +1450,7 @@ const MemberItem = styled.button`
   cursor: pointer;
 
   &:hover {
-    background: #f8fafc;
+    background: #fcfbf8;
   }
 `;
 
@@ -1454,23 +1465,24 @@ const MemberInfo = styled.div`
   strong {
     font-size: 15px;
     color: #111827;
+    font-weight: 500;
   }
 
   p {
     margin-top: 2px;
     font-size: 13px;
-    color: #6b7280;
+    color: #666;
   }
 `;
 
 const MemberEmpty = styled.div`
   height: 120px;
-  border: 1px dashed #d1d5db;
-  border-radius: 12px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9ca3af;
+  color: #999;
   font-size: 14px;
 `;
 
@@ -1482,19 +1494,19 @@ const ProductModalFooter = styled.div`
 `;
 
 const ProductModalBtn = styled.button<{ $primary?: boolean }>`
-  height: 62px;
-  border-radius: 14px;
-  border: 1px solid ${(props) => (props.$primary ? '#111827' : '#cfd6e0')};
-  background: ${(props) => (props.$primary ? '#111827' : '#fff')};
-  color: ${(props) => (props.$primary ? '#fff' : '#374151')};
-  font-size: 16px;
-  font-weight: 700;
+  height: 56px;
+  border-radius: 0;
+  border: 1px solid ${(props) => (props.$primary ? '#333' : '#d9d9d9')};
+  background: ${(props) => (props.$primary ? '#333' : '#fff')};
+  color: ${(props) => (props.$primary ? '#fff' : '#333')};
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
 
   &:disabled {
     border-color: #e5e7eb;
     background: #e5e7eb;
-    color: #9ca3af;
+    color: #999;
     cursor: not-allowed;
   }
 `;
@@ -1509,14 +1521,14 @@ const AddressModal = styled(MemberModal)`
 const AddressModalHead = styled.div`
   height: 88px;
   padding: 0 26px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #ece7de;
   display: flex;
   align-items: center;
   justify-content: space-between;
 
   h3 {
-    font-size: 20px;
-    font-weight: 800;
+    font-size: 22px;
+    font-weight: 600;
     color: #111827;
   }
 `;
@@ -1524,7 +1536,7 @@ const AddressModalHead = styled.div`
 const AddressSearchRow = styled.div`
   height: 80px;
   padding: 16px 22px;
-  border-bottom: 1px solid #111827;
+  border-bottom: 1px solid #d9d9d9;
   display: grid;
   grid-template-columns: 1fr 46px;
   align-items: center;
@@ -1543,7 +1555,7 @@ const AddressSearchRow = styled.div`
   button {
     border: none;
     background: transparent;
-    color: #374151;
+    color: #555;
     font-size: 24px;
     cursor: pointer;
   }
@@ -1557,20 +1569,20 @@ const AddressBody = styled.div`
 
 const TipBox = styled.div`
   h4 {
-    font-size: 18px;
-    font-weight: 800;
+    font-size: 20px;
+    font-weight: 600;
     color: #111827;
     margin-bottom: 8px;
   }
 
   p {
     font-size: 14px;
-    color: #1f2937;
+    color: #333;
     line-height: 1.7;
   }
 
   .sample {
-    color: #0284c7;
+    color: #2563eb;
     margin-bottom: 8px;
   }
 `;
@@ -1582,38 +1594,39 @@ const AddressResults = styled.div`
 `;
 
 const AddressItem = styled.button`
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
   background: #fff;
   padding: 12px;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    border-color: #94a3b8;
-    background: #f8fafc;
+    border-color: #999;
+    background: #fcfbf8;
   }
 
   strong {
     display: block;
     color: #111827;
     font-size: 15px;
+    font-weight: 500;
   }
 
   p {
     margin-top: 4px;
-    color: #6b7280;
+    color: #666;
     font-size: 13px;
   }
 `;
 
 const AddressEmpty = styled.div`
   height: 180px;
-  border: 1px dashed #d1d5db;
-  border-radius: 12px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9ca3af;
+  color: #999;
   font-size: 14px;
 `;
