@@ -436,7 +436,7 @@ const ProductUpload = () => {
   return (
     <Page>
       <Header>
-        <PageTitle>상품 업로드</PageTitle>
+        <PageTitle>{isEditMode ? '상품 수정' : '상품 업로드'}</PageTitle>
         <PageDesc>{isEditMode ? '등록된 상품 정보를 수정합니다.' : '상품 기본정보와 색상/재고를 등록합니다.'}</PageDesc>
       </Header>
 
@@ -500,7 +500,7 @@ const ProductUpload = () => {
                 <SizeButton
                   key={size.sizeId}
                   type="button"
-                  selected={selectedSizeIds.includes(size.sizeId)}
+                  $selected={selectedSizeIds.includes(size.sizeId)}
                   onClick={() => handleToggleSize(size.sizeId)}
                 >
                   {size.label}
@@ -517,8 +517,8 @@ const ProductUpload = () => {
                   <ColorButton
                     key={`${activeSize.sizeId}-${color.colorId}`}
                     type="button"
-                    colorCode={color.code}
-                    selected={(sizeColorSelections[activeSize.sizeId] ?? []).includes(color.colorId)}
+                    $colorCode={color.code}
+                    $selected={(sizeColorSelections[activeSize.sizeId] ?? []).includes(color.colorId)}
                     onClick={() => handleToggleSizeColor(activeSize.sizeId, color.colorId)}
                     title={color.name}
                   />
@@ -597,7 +597,7 @@ const ProductUpload = () => {
                 <OptionLabel>Size</OptionLabel>
                 <SizeGrid>
                   {selectedSizes.map((size) => (
-                    <SizeButton key={`preview-size-${size.sizeId}`} type="button" selected>
+                    <SizeButton key={`preview-size-${size.sizeId}`} type="button" $selected>
                       {size.label}
                     </SizeButton>
                   ))}
@@ -606,7 +606,7 @@ const ProductUpload = () => {
                 <OptionLabel>Color</OptionLabel>
                 <ColorGrid>
                   {selectedColors.map((color) => (
-                    <ColorButton key={`preview-${color.colorId}`} type="button" colorCode={color.code} selected title={color.name} />
+                    <ColorButton key={`preview-${color.colorId}`} type="button" $colorCode={color.code} $selected title={color.name} />
                   ))}
                 </ColorGrid>
               </InfoSection>
@@ -746,21 +746,21 @@ const SizeGrid = styled.div`
   flex-wrap: wrap;
 `;
 
-const SizeButton = styled.button<{ selected: boolean }>`
+const SizeButton = styled.button<{ $selected: boolean }>`
   min-width: 44px;
   height: 36px;
-  border: 1px solid ${(props) => (props.selected ? '#222' : '#d9d9d9')};
-  background: ${(props) => (props.selected ? '#222' : '#fff')};
-  color: ${(props) => (props.selected ? '#fff' : '#222')};
+  border: 1px solid ${(props) => (props.$selected ? '#222' : '#d9d9d9')};
+  background: ${(props) => (props.$selected ? '#222' : '#fff')};
+  color: ${(props) => (props.$selected ? '#fff' : '#222')};
   font-size: 13px;
   cursor: pointer;
 `;
 
-const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
+const ColorButton = styled.button<{ $colorCode: string; $selected: boolean }>`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: ${(props) => props.colorCode};
+  background-color: ${(props) => props.$colorCode};
   border: 1px solid #ddd;
   cursor: pointer;
   position: relative;
@@ -773,7 +773,7 @@ const ColorButton = styled.button<{ colorCode: string; selected: boolean }>`
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    border: 1px solid ${(props) => (props.selected ? '#333' : 'transparent')};
+    border: 1px solid ${(props) => (props.$selected ? '#333' : 'transparent')};
   }
 `;
 
@@ -916,5 +916,8 @@ const OptionLabel = styled.p`
   margin-bottom: 12px;
   color: #333;
 `;
+
+
+
 
 
