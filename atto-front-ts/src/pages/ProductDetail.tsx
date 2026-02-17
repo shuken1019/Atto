@@ -22,7 +22,7 @@ const ProductDetail: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [scrapPending, setScrapPending] = useState(false);
-  const variants = product?.variants ?? [];
+  const variants = useMemo(() => product?.variants ?? [], [product?.variants]);
   const sizeLabelToId = (size: string): number => {
     if (size === 'S') return 1;
     if (size === 'M') return 2;
@@ -75,7 +75,10 @@ const ProductDetail: React.FC = () => {
 
   useEffect(() => {
     if (!selectedColor) return;
-    if (isColorBlocked(selectedColor)) {
+
+    const selectedVariant = variants.find((v) => v.color === selectedColor);
+    const blocked = Boolean(selectedSize && !selectedVariant?.sizes.includes(selectedSize));
+    if (blocked) {
       setSelectedColor(null);
     }
   }, [selectedSize, selectedColor, variants]);
