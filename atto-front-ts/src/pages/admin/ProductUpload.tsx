@@ -2,6 +2,7 @@
 import styled from 'styled-components';
 import type { CategoryType } from '../../types/product';
 import { ProductImageSVG } from '../../components/common/Placeholders';
+import { useParams } from 'react-router-dom';
 
 type AdminColor = {
   colorId: number;
@@ -12,6 +13,15 @@ type AdminColor = {
 type AdminSize = {
   sizeId: number;
   label: 'S' | 'M' | 'L';
+};
+
+type AdminProductOption = {
+  optionId?: number;
+  productId?: number;
+  colorId: number;
+  sizeId: number;
+  stock: number;
+  additionalPrice?: number;
 };
 
 const FALLBACK_COLORS: AdminColor[] = [
@@ -28,18 +38,34 @@ const AVAILABLE_SIZES: AdminSize[] = [
   { sizeId: 3, label: 'L' },
 ];
 
+const categoryFromId = (categoryId: number): CategoryType => {
+  if (categoryId === 1) return 'outer';
+  if (categoryId === 2) return 'top';
+  if (categoryId === 3) return 'bottom';
+  if (categoryId === 4) return 'acc';
+  return 'top';
+};
+
 const ProductUpload = () => {
+  const { id } = useParams<{ id?: string }>();
+  const productId = Number(id);
+  const isEditMode = Number.isInteger(productId) && productId > 0;
+
   const [name, setName] = useState('');
   const [category, setCategory] = useState<CategoryType>('top');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
+  const [thumbnailPath, setThumbnailPath] = useState('');
   const [representativeImages, setRepresentativeImages] = useState<File[]>([]);
   const [availableColors, setAvailableColors] = useState<AdminColor[]>(FALLBACK_COLORS);
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
+  const [activeSizeId, setActiveSizeId] = useState<number | null>(null);
   const [sizeColorSelections, setSizeColorSelections] = useState<Record<number, number[]>>({});
   const [optionStocks, setOptionStocks] = useState<Record<string, string>>({});
+  const [initialOptionStocks, setInitialOptionStocks] = useState<Record<string, number>>({});
+  const [loadingEditData, setLoadingEditData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const representativePreviewUrls = useMemo(
@@ -92,9 +118,83 @@ const ProductUpload = () => {
     loadColors();
   }, []);
 
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    const loadProductForEdit = async () => {
+      setLoadingEditData(true);
+      try {
+        const response = await fetch(`http://127.0.0.1:4000/api/admin/products/${productId}`);
+        const result = await response.json();
+        if (!response.ok || !result?.ok || !result?.product) {
+          alert(result?.message ?? 'Failed to load product info.');
+          return;
+        }
+
+        const product = result.product as {
+          name?: string;
+          description?: string;
+          price?: number;
+          categoryId?: number;
+          thumbnail?: string;
+        };
+        const options = (Array.isArray(result.productOptions) ? result.productOptions : []) as AdminProductOption[];
+
+        setName(String(product.name ?? ''));
+        setDescription(String(product.description ?? ''));
+        setPrice(String(Number(product.price ?? 0)));
+        setCategory(categoryFromId(Number(product.categoryId ?? 2)));
+
+        const existingThumb = String(product.thumbnail ?? '').trim();
+        setThumbnailPath(existingThumb);
+        setThumbnailPreviewUrl(existingThumb);
+        setThumbnailFile(null);
+
+        const sizeSet = new Set<number>();
+        const selectionMap: Record<number, number[]> = {};
+        const stockTextMap: Record<string, string> = {};
+        const stockNumMap: Record<string, number> = {};
+
+        options.forEach((row) => {
+          const sizeId = Number(row.sizeId);
+          const colorId = Number(row.colorId);
+          const stock = Number(row.stock ?? 0);
+          if (!Number.isInteger(sizeId) || sizeId <= 0 || !Number.isInteger(colorId) || colorId <= 0) return;
+
+          sizeSet.add(sizeId);
+          selectionMap[sizeId] = selectionMap[sizeId] ?? [];
+          if (!selectionMap[sizeId].includes(colorId)) {
+            selectionMap[sizeId].push(colorId);
+          }
+
+          const key = `${sizeId}:${colorId}`;
+          stockTextMap[key] = String(stock);
+          stockNumMap[key] = stock;
+        });
+
+        const sizeIds = Array.from(sizeSet).sort((a, b) => a - b);
+        setSelectedSizeIds(sizeIds);
+        setActiveSizeId(sizeIds[0] ?? null);
+        setSizeColorSelections(selectionMap);
+        setOptionStocks(stockTextMap);
+        setInitialOptionStocks(stockNumMap);
+      } catch {
+        alert('Server connection failed.');
+      } finally {
+        setLoadingEditData(false);
+      }
+    };
+
+    loadProductForEdit();
+  }, [isEditMode, productId]);
+
   const selectedSizes = useMemo(
     () => AVAILABLE_SIZES.filter((size) => selectedSizeIds.includes(size.sizeId)),
     [selectedSizeIds]
+  );
+  const activeSize = useMemo(
+    () => AVAILABLE_SIZES.find((size) => size.sizeId === activeSizeId) ?? null,
+    [activeSizeId]
   );
 
   const selectedColors = useMemo(() => {
@@ -117,6 +217,7 @@ const ProductUpload = () => {
   const handleSelectThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setThumbnailFile(file);
+    setThumbnailPath('');
     if (thumbnailPreviewUrl) {
       URL.revokeObjectURL(thumbnailPreviewUrl);
       setThumbnailPreviewUrl('');
@@ -139,6 +240,11 @@ const ProductUpload = () => {
   const handleToggleSize = (sizeId: number) => {
     setSelectedSizeIds((prev) => {
       if (prev.includes(sizeId)) {
+        if (activeSizeId !== sizeId) {
+          setActiveSizeId(sizeId);
+          return prev;
+        }
+
         const next = prev.filter((id) => id !== sizeId);
         setSizeColorSelections((selections) => {
           const copied = { ...selections };
@@ -152,10 +258,15 @@ const ProductUpload = () => {
           });
           return copied;
         });
+        setActiveSizeId((curr) => {
+          if (curr !== sizeId) return curr;
+          return next.length > 0 ? next[next.length - 1] : null;
+        });
         return next;
       }
 
       setSizeColorSelections((selections) => ({ ...selections, [sizeId]: selections[sizeId] ?? [] }));
+      setActiveSizeId(sizeId);
       return [...prev, sizeId];
     });
   };
@@ -175,7 +286,7 @@ const ProductUpload = () => {
 
       setOptionStocks((stocks) => ({
         ...stocks,
-        [optionKey(sizeId, colorId)]: stocks[optionKey(sizeId, colorId)] ?? '0',
+        [optionKey(sizeId, colorId)]: stocks[optionKey(sizeId, colorId)] ?? '',
       }));
       return { ...prev, [sizeId]: [...current, colorId] };
     });
@@ -191,37 +302,67 @@ const ProductUpload = () => {
     const priceNum = Number(price);
 
     if (!safeName) {
-      alert('상품명을 입력해주세요.');
+      alert('Please enter product name.');
       return;
     }
     if (!Number.isInteger(priceNum) || priceNum < 0) {
-      alert('가격은 0 이상 정수로 입력해주세요.');
+      alert('Price must be a non-negative integer.');
       return;
     }
     if (selectedSizeIds.length === 0) {
-      alert('최소 1개 이상의 사이즈를 선택해주세요.');
+      alert('Select at least one size.');
       return;
     }
-    if (!thumbnailFile) {
-      alert('썸네일 이미지를 선택해주세요.');
+    if (!thumbnailFile && !thumbnailPath) {
+      alert('Please select a thumbnail image.');
       return;
+    }
+
+    for (const sizeId of selectedSizeIds) {
+      const colorIds = sizeColorSelections[sizeId] ?? [];
+      if (colorIds.length === 0) {
+        const sizeLabel = AVAILABLE_SIZES.find((size) => size.sizeId === sizeId)?.label ?? String(sizeId);
+        alert(`${sizeLabel} size needs at least one color.`);
+        return;
+      }
+
+      for (const colorId of colorIds) {
+        const key = optionKey(sizeId, colorId);
+        const rawStock = String(optionStocks[key] ?? '').trim();
+        if (rawStock.length === 0 && !isEditMode) {
+          const sizeLabel = AVAILABLE_SIZES.find((size) => size.sizeId === sizeId)?.label ?? String(sizeId);
+          const colorLabel = availableColors.find((color) => color.colorId === colorId)?.name ?? `Color-${colorId}`;
+          alert(`${sizeLabel} / ${colorLabel} stock is required.`);
+          return;
+        }
+        if (rawStock.length === 0 && isEditMode) {
+          continue;
+        }
+        const stockNum = Number(rawStock);
+        if (!Number.isInteger(stockNum) || stockNum < 0) {
+          alert('Stock must be a non-negative integer.');
+          return;
+        }
+      }
     }
 
     const productOptions = selectedSizeIds.flatMap((sizeId) => {
       const colorIds = sizeColorSelections[sizeId] ?? [];
       return colorIds.map((colorId) => {
-        const stockNum = Number(optionStocks[optionKey(sizeId, colorId)] ?? 0);
+        const key = optionKey(sizeId, colorId);
+        const rawStock = String(optionStocks[key] ?? '').trim();
+        const stock = rawStock.length > 0 ? Number(rawStock) : (initialOptionStocks[key] ?? 0);
         return {
           colorId,
           sizeId,
-          stock: Number.isInteger(stockNum) && stockNum >= 0 ? stockNum : 0,
+          stock,
           additionalPrice: 0,
         };
       });
     });
 
     if (productOptions.length === 0) {
-      alert('사이즈별로 최소 1개 이상의 색상을 선택해주세요.');
+      alert('Please select options.');
       return;
     }
 
@@ -236,10 +377,13 @@ const ProductUpload = () => {
 
     setSubmitting(true);
     try {
-      const thumbnailDataUrl = await fileToDataUrl(thumbnailFile);
+      const thumbnailDataUrl = thumbnailFile ? await fileToDataUrl(thumbnailFile) : '';
+      const endpoint = isEditMode
+        ? `http://127.0.0.1:4000/api/admin/products/${productId}`
+        : 'http://127.0.0.1:4000/api/admin/products';
 
-      const response = await fetch('http://127.0.0.1:4000/api/admin/products', {
-        method: 'POST',
+      const response = await fetch(endpoint, {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: safeName,
@@ -247,9 +391,9 @@ const ProductUpload = () => {
           price: priceNum,
           category,
           status: 'ON_SALE',
-          thumbnail: '',
+          thumbnail: thumbnailPath,
           thumbnailDataUrl,
-          thumbnailName: thumbnailFile.name,
+          thumbnailName: thumbnailFile?.name ?? '',
           productColors,
           productOptions,
         }),
@@ -257,25 +401,33 @@ const ProductUpload = () => {
 
       const result = await response.json();
       if (!response.ok || !result.ok) {
-        alert(result.message ?? '상품 등록에 실패했습니다.');
+        alert(result.message ?? (isEditMode ? 'Product update failed.' : 'Product create failed.'));
         return;
       }
 
-      alert(`상품 등록 완료 (ID: ${result.productId})`);
+      if (isEditMode) {
+        alert('Product updated.');
+        return;
+      }
+
+      alert(`Product created (ID: ${result.productId})`);
       setName('');
       setPrice('');
       setDescription('');
       setThumbnailFile(null);
+      setThumbnailPath('');
       if (thumbnailPreviewUrl) {
         URL.revokeObjectURL(thumbnailPreviewUrl);
       }
       setThumbnailPreviewUrl('');
       setRepresentativeImages([]);
       setSelectedSizeIds([]);
+      setActiveSizeId(null);
       setSizeColorSelections({});
       setOptionStocks({});
+      setInitialOptionStocks({});
     } catch {
-      alert('서버 연결에 실패했습니다.');
+      alert('Server connection failed.');
     } finally {
       setSubmitting(false);
     }
@@ -284,14 +436,12 @@ const ProductUpload = () => {
   return (
     <Page>
       <Header>
-        <PageTitle>상품 업로드/수정</PageTitle>
-        <PageDesc>상품 기본정보와 색상/재고를 등록합니다.</PageDesc>
+        <PageTitle>상품 업로드</PageTitle>
+        <PageDesc>{isEditMode ? '등록된 상품 정보를 수정합니다.' : '상품 기본정보와 색상/재고를 등록합니다.'}</PageDesc>
       </Header>
 
       <Workspace>
         <EditorPanel>
-          <PanelTitle>입력 폼</PanelTitle>
-
           <Field>
             <Label htmlFor="product-name">상품명</Label>
             <Input
@@ -334,7 +484,7 @@ const ProductUpload = () => {
             <Label htmlFor="product-thumbnail-file">썸네일</Label>
             <SmallUploadButton htmlFor="product-thumbnail-file">썸네일 불러오기</SmallUploadButton>
             <HiddenFileInput id="product-thumbnail-file" type="file" accept="image/*" onChange={handleSelectThumbnail} />
-            <ThumbnailMeta>{thumbnailFile ? thumbnailFile.name : '선택된 파일 없음'}</ThumbnailMeta>
+            <ThumbnailMeta>{thumbnailFile ? thumbnailFile.name : (thumbnailPath || '선택된 파일 없음')}</ThumbnailMeta>
           </Field>
 
           <Field>
@@ -359,34 +509,34 @@ const ProductUpload = () => {
             </SizeGrid>
           </Field>
 
-          {selectedSizes.map((size) => (
-            <Field key={`color-${size.sizeId}`}>
-              <Label>{size.label} 색상 선택</Label>
+          {activeSize && (
+            <Field key={`color-${activeSize.sizeId}`}>
+              <Label>{activeSize.label} 색상 선택</Label>
               <ColorGrid>
                 {availableColors.map((color) => (
                   <ColorButton
-                    key={`${size.sizeId}-${color.colorId}`}
+                    key={`${activeSize.sizeId}-${color.colorId}`}
                     type="button"
                     colorCode={color.code}
-                    selected={(sizeColorSelections[size.sizeId] ?? []).includes(color.colorId)}
-                    onClick={() => handleToggleSizeColor(size.sizeId, color.colorId)}
+                    selected={(sizeColorSelections[activeSize.sizeId] ?? []).includes(color.colorId)}
+                    onClick={() => handleToggleSizeColor(activeSize.sizeId, color.colorId)}
                     title={color.name}
                   />
                 ))}
               </ColorGrid>
             </Field>
-          ))}
+          )}
 
-          {selectedSizes.map((size) => {
-            const colorIds = sizeColorSelections[size.sizeId] ?? [];
+          {activeSize && (() => {
+            const colorIds = sizeColorSelections[activeSize.sizeId] ?? [];
             const colors = availableColors.filter((color) => colorIds.includes(color.colorId));
             if (colors.length === 0) return null;
             return (
-              <Field key={`stock-${size.sizeId}`}>
-                <Label>{size.label} 색상별 재고</Label>
+              <Field key={`stock-${activeSize.sizeId}`}>
+                <Label>{activeSize.label} 색상별 재고</Label>
                 <StockList>
                   {colors.map((color) => (
-                    <StockRow key={`${size.sizeId}-${color.colorId}`}>
+                    <StockRow key={`${activeSize.sizeId}-${color.colorId}`}>
                       <StockColor>
                         <Dot style={{ backgroundColor: color.code }} />
                         {color.name}
@@ -394,15 +544,15 @@ const ProductUpload = () => {
                       <StockInput
                         type="number"
                         min={0}
-                        value={optionStocks[optionKey(size.sizeId, color.colorId)] ?? '0'}
-                        onChange={(e) => handleOptionStockChange(size.sizeId, color.colorId, e.target.value)}
+                        value={optionStocks[optionKey(activeSize.sizeId, color.colorId)] ?? ''}
+                        onChange={(e) => handleOptionStockChange(activeSize.sizeId, color.colorId, e.target.value)}
                       />
                     </StockRow>
                   ))}
                 </StockList>
               </Field>
             );
-          })}
+          })()}
 
           {selectedColors.length > 0 && (
             <Field>
@@ -420,8 +570,8 @@ const ProductUpload = () => {
             </Field>
           )}
 
-          <SubmitButton type="button" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? '등록 중...' : '상품 등록'}
+          <SubmitButton type="button" onClick={handleSubmit} disabled={submitting || loadingEditData}>
+            {loadingEditData ? 'Loading...' : (submitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Product' : 'Create Product'))}
           </SubmitButton>
         </EditorPanel>
 
@@ -471,19 +621,20 @@ const ProductUpload = () => {
 export default ProductUpload;
 
 const Page = styled.div`
+  margin: -40px;
   padding: 24px;
   background: #f7f5f0;
-  min-height: 100vh;
+  min-height: calc(100vh - 80px);
 `;
 
 const Header = styled.div`
   max-width: 1400px;
-  margin: 0 auto 20px;
+  margin: 0 auto 14px;
 `;
 
 const PageTitle = styled.h2`
   font-family: 'Noto Sans KR', sans-serif;
-  font-size: 30px;
+  font-size: 21px;
   font-weight: 500;
   margin-bottom: 6px;
 `;
@@ -510,11 +661,6 @@ const EditorPanel = styled.aside`
   border: 1px solid #ece7de;
   padding: 20px;
   height: fit-content;
-`;
-
-const PanelTitle = styled.h3`
-  font-size: 18px;
-  margin-bottom: 16px;
 `;
 
 const Field = styled.div`
@@ -770,3 +916,5 @@ const OptionLabel = styled.p`
   margin-bottom: 12px;
   color: #333;
 `;
+
+

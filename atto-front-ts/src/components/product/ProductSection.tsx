@@ -1,18 +1,12 @@
-// src/components/product/ProductSection.tsx
-
 import React from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
 import ProductCard from './ProductCard';
-// ⭐️중요⭐️: 반드시 이 경로의 진짜 IProduct를 사용해야 합니다.
-import type{ IProduct } from '../../types/product';
-
-// 🚨🚨🚨 여기에 interface IProduct { ... } 같은 코드가 있었다면 절대 안 됩니다! 삭제되었습니다. 🚨🚨🚨
+import type { IProduct } from '../../types/product';
 
 interface ProductSectionProps {
-  title: string;
-  // 이제 여기의 IProduct는 진짜(types/product.ts)를 의미합니다.
-  products: IProduct[]; 
+  title: React.ReactNode;
+  products: IProduct[];
   seeAllLink?: string;
 }
 
@@ -20,13 +14,11 @@ const ProductSection: React.FC<ProductSectionProps> = ({ title, products, seeAll
   return (
     <SectionContainer>
       <SectionHeader>
-        <h2>{title}</h2>
+        <Title>{title}</Title>
         <StyledLink to={seeAllLink}>See All</StyledLink>
       </SectionHeader>
       <ProductGrid>
-        {/* 앞에서부터 3개만 잘라서 보여줍니다. */}
         {products.slice(0, 3).map((product) => (
-          /* 이제 product.id가 숫자이므로 ProductCard가 기쁘게 받아들입니다. */
           <ProductCard key={product.id} product={product} />
         ))}
       </ProductGrid>
@@ -35,8 +27,6 @@ const ProductSection: React.FC<ProductSectionProps> = ({ title, products, seeAll
 };
 
 export default ProductSection;
-
-// ---------- Styled Components 정의 ----------
 
 const SectionContainer = styled.section`
   margin-bottom: 80px;
@@ -52,19 +42,22 @@ const SectionHeader = styled.div`
   align-items: center;
   margin-bottom: 24px;
 
-  h2 {
-    font-size: 28px;
-    font-weight: 400;
-    color: #1a1a1a;
-    font-family: serif;
-  }
-
   @media (max-width: 640px) {
     margin-bottom: 16px;
+  }
+`;
 
-    h2 {
-      font-size: 24px;
-    }
+const Title = styled.h2`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 28px;
+  font-weight: 400;
+  color: #1a1a1a;
+  font-family: serif;
+
+  @media (max-width: 640px) {
+    font-size: 24px;
   }
 `;
 

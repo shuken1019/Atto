@@ -100,7 +100,7 @@ const App: React.FC = () => {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="products" element={<ProductManagement />} />
-            <Route path="products/:id/edit" element={<ProductHtmlWrite />} />
+            <Route path="products/:id/edit" element={<ProductUpload />} />
             <Route path="upload" element={<ProductUpload />} />
             <Route path="upload/direct-write" element={<ProductDirectWrite />} />
             <Route path="upload/html-write" element={<ProductHtmlWrite />} />

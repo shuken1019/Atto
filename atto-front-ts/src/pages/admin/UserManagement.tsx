@@ -1,45 +1,89 @@
-//회원 목록 & 검색// src/pages/admin/UserManagement.tsx
-import React, { useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
-interface User {
+type AdminUser = {
+  userId: number;
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  joinDate: string;
-  status: '정상' | '정지';
-}
+  phone: string | null;
+  mail: string;
+  role: 'ADMIN' | 'USER';
+  created_at: string;
+  updated_at: string;
+};
+
+const API_BASE = 'http://127.0.0.1:4000';
 
 const UserManagement: React.FC = () => {
-  // 가짜 회원 데이터
-  const [users, setUsers] = useState<User[]>([
-    { id: 'atto_01', name: '김아토', email: 'kim@atto.com', phone: '010-1111-2222', joinDate: '2024-02-10', status: '정상' },
-    { id: 'user_99', name: '이수아', email: 'lee@example.com', phone: '010-3333-4444', joinDate: '2024-01-15', status: '정상' },
-    { id: 'black_list', name: '박진상', email: 'bad@bad.com', phone: '010-0000-0000', joinDate: '2023-12-20', status: '정지' },
-  ]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [workingUserId, setWorkingUserId] = useState<number | null>(null);
+
+  const loadUsers = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/users`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        alert(result.message ?? '사용자 목록 조회 실패');
+        return;
+      }
+      setUsers(Array.isArray(result.users) ? (result.users as AdminUser[]) : []);
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const filteredUsers = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) return users;
     return users.filter(
       (user) =>
-        user.id.toLowerCase().includes(keyword) ||
-        user.name.toLowerCase().includes(keyword) ||
-        user.email.toLowerCase().includes(keyword),
+        String(user.id).toLowerCase().includes(keyword) ||
+        String(user.name).toLowerCase().includes(keyword) ||
+        String(user.mail).toLowerCase().includes(keyword)
     );
   }, [query, users]);
 
-  const toggleStatus = (id: string) => {
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== id) return user;
-        const nextStatus = user.status === '정상' ? '정지' : '정상';
-        return { ...user, status: nextStatus };
-      }),
-    );
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '-';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const roleLabel = (role: AdminUser['role']) => (role === 'ADMIN' ? '관리자' : '일반회원');
+
+  const toggleRole = async (user: AdminUser) => {
+    const nextRole: AdminUser['role'] = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
+    setWorkingUserId(user.userId);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/users/${user.userId}/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: nextRole }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        alert(result.message ?? '권한 변경 실패');
+        return;
+      }
+      setUsers((prev) => prev.map((u) => (u.userId === user.userId ? { ...u, role: nextRole } : u)));
+      setSelectedUser((prev) => (prev && prev.userId === user.userId ? { ...prev, role: nextRole } : prev));
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setWorkingUserId(null);
+    }
   };
 
   return (
@@ -47,13 +91,7 @@ const UserManagement: React.FC = () => {
       <Header>
         <Title>사용자 관리</Title>
         <SearchBox>
-          <input
-            type="text"
-            placeholder="회원 아이디 또는 이름 검색"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button type="button">검색</button>
+          <input type="text" placeholder="아이디 / 이름 / 이메일 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
         </SearchBox>
       </Header>
 
@@ -61,42 +99,47 @@ const UserManagement: React.FC = () => {
         <UserTable>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>USER ID</th>
+              <th>아이디</th>
               <th>이름</th>
               <th>Email</th>
               <th>연락처</th>
               <th>가입일</th>
-              <th>상태</th>
+              <th>권한</th>
               <th>관리</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td>{user.id}</td>
-                <td>{user.name}</td>
-                <td>{user.email}</td>
-                <td>{user.phone}</td>
-                <td>{user.joinDate}</td>
-                <td>
-                  <StatusTag active={user.status === '정상'}>{user.status}</StatusTag>
-                </td>
-                <td>
-                  <ActionBtn type="button" onClick={() => setSelectedUser(user)}>상세</ActionBtn>
-                  <ActionBtn
-                    type="button"
-                    color={user.status === '정상' ? '#a35555' : '#4d6b4d'}
-                    onClick={() => toggleStatus(user.id)}
-                  >
-                    {user.status === '정상' ? '정지' : '해제'}
-                  </ActionBtn>
-                </td>
-              </tr>
-            ))}
-            {filteredUsers.length === 0 && (
+            {loading ? (
               <tr>
-                <td colSpan={7}>검색 결과가 없습니다.</td>
+                <td colSpan={8}>불러오는 중...</td>
               </tr>
+            ) : filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={8}>검색 결과가 없습니다.</td>
+              </tr>
+            ) : (
+              filteredUsers.map((user) => (
+                <tr key={user.userId}>
+                  <td>{user.userId}</td>
+                  <td>{user.id}</td>
+                  <td>{user.name}</td>
+                  <td>{user.mail}</td>
+                  <td>{user.phone ?? '-'}</td>
+                  <td>{formatDate(user.created_at)}</td>
+                  <td>
+                    <RoleTag $active={user.role === 'ADMIN'}>{roleLabel(user.role)}</RoleTag>
+                  </td>
+                  <td>
+                    <ActionBtn type="button" onClick={() => setSelectedUser(user)}>
+                      상세
+                    </ActionBtn>
+                    <ActionBtn type="button" onClick={() => toggleRole(user)} disabled={workingUserId === user.userId}>
+                      {user.role === 'ADMIN' ? '관리자 해제' : '관리자 지정'}
+                    </ActionBtn>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </UserTable>
@@ -108,26 +151,20 @@ const UserManagement: React.FC = () => {
           <UserDetailModal>
             <ModalHead>
               <h3>회원 상세</h3>
-              <button type="button" onClick={() => setSelectedUser(null)}>×</button>
+              <button type="button" onClick={() => setSelectedUser(null)}>x</button>
             </ModalHead>
             <DetailGrid>
+              <span>USER ID</span><strong>{selectedUser.userId}</strong>
               <span>아이디</span><strong>{selectedUser.id}</strong>
               <span>이름</span><strong>{selectedUser.name}</strong>
-              <span>이메일</span><strong>{selectedUser.email}</strong>
-              <span>연락처</span><strong>{selectedUser.phone}</strong>
-              <span>가입일</span><strong>{selectedUser.joinDate}</strong>
-              <span>상태</span><strong>{selectedUser.status}</strong>
+              <span>이메일</span><strong>{selectedUser.mail}</strong>
+              <span>연락처</span><strong>{selectedUser.phone ?? '-'}</strong>
+              <span>가입일</span><strong>{formatDate(selectedUser.created_at)}</strong>
+              <span>권한</span><strong>{roleLabel(selectedUser.role)}</strong>
             </DetailGrid>
             <ModalFooter>
-              <ActionBtn
-                type="button"
-                color={selectedUser.status === '정상' ? '#a35555' : '#4d6b4d'}
-                onClick={() => {
-                  toggleStatus(selectedUser.id);
-                  setSelectedUser((prev) => (prev ? { ...prev, status: prev.status === '정상' ? '정지' : '정상' } : prev));
-                }}
-              >
-                {selectedUser.status === '정상' ? '정지 처리' : '정상 해제'}
+              <ActionBtn type="button" onClick={() => toggleRole(selectedUser)} disabled={workingUserId === selectedUser.userId}>
+                {selectedUser.role === 'ADMIN' ? '관리자 해제' : '관리자 지정'}
               </ActionBtn>
               <ActionBtn type="button" onClick={() => setSelectedUser(null)}>닫기</ActionBtn>
             </ModalFooter>
@@ -140,36 +177,34 @@ const UserManagement: React.FC = () => {
 
 export default UserManagement;
 
-// ---------- Styled Components ----------
-
 const Container = styled.div`
   background: #f7f5f0;
+  margin: -40px;
   padding: 24px;
-  min-height: 100vh;
+  min-height: calc(100vh - 80px);
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 `;
 
 const Title = styled.h2`
   font-family: 'Noto Sans KR', sans-serif;
   font-weight: 500;
-  font-size: 30px;
+  font-size: 21px;
 `;
 
 const SearchBox = styled.div`
   display: flex;
   gap: 10px;
   input {
-    padding: 10px 15px; border: 1px solid #d9d9d9; border-radius: 0; width: 250px;
+    padding: 10px 15px;
+    border: 1px solid #d9d9d9;
+    width: 280px;
     background: #fff;
-  }
-  button {
-    padding: 10px 20px; background: #333; color: #fff; border: none; border-radius: 0; cursor: pointer;
   }
 `;
 
@@ -183,45 +218,43 @@ const TableContainer = styled.div`
 const UserTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  th, td {
-    padding: 18px 15px;
-    text-align: left;
-    font-size: 14px;
+
+  th,
+  td {
+    padding: 16px 12px;
     border-bottom: 1px solid #ece7de;
+    text-align: left;
+    font-size: 13px;
+    white-space: nowrap;
   }
+
   th {
-    background-color: #fcfbf8;
-    font-weight: 600;
+    background: #fcfbf8;
     color: #6f6f6f;
+    font-weight: 600;
   }
 `;
 
-const StatusTag = styled.span<{ active: boolean }>`
+const RoleTag = styled.span<{ $active: boolean }>`
   padding: 4px 10px;
-  border-radius: 0;
   font-size: 12px;
-  background-color: ${props => props.active ? '#f5f7f3' : '#f9f1f1'};
-  color: ${props => props.active ? '#4d6b4d' : '#a35555'};
-  border: 1px solid ${props => props.active ? '#dce6d6' : '#eed6d6'};
+  border-radius: 999px;
+  background-color: ${(props) => (props.$active ? '#f5f7f3' : '#f4f4f4')};
 `;
 
-const ActionBtn = styled.button<{ color?: string }>`
+const ActionBtn = styled.button`
   background: #fff;
   border: 1px solid #d9d9d9;
-  color: ${props => props.color || '#333'};
-  cursor: pointer;
   margin-right: 8px;
-  font-size: 13px;
   padding: 6px 10px;
-  height: 32px;
-  &:hover { opacity: 0.7; }
+  cursor: pointer;
 `;
 
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
-  z-index: 50;
+  z-index: 20;
 `;
 
 const UserDetailModal = styled.div`
@@ -229,10 +262,10 @@ const UserDetailModal = styled.div`
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(92vw, 520px);
+  width: min(520px, calc(100vw - 24px));
   background: #fff;
-  border: 1px solid #ece7de;
-  z-index: 60;
+  border: 1px solid #ddd;
+  z-index: 21;
   padding: 18px;
 `;
 
@@ -242,45 +275,26 @@ const ModalHead = styled.div`
   align-items: center;
   margin-bottom: 14px;
 
-  h3 {
-    font-size: 18px;
-    color: #1a1a1a;
-    font-weight: 600;
-  }
-
   button {
     border: none;
     background: transparent;
-    font-size: 24px;
-    color: #666;
     cursor: pointer;
   }
 `;
 
 const DetailGrid = styled.div`
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 10px 14px;
+  grid-template-columns: 120px 1fr;
+  gap: 8px 10px;
   padding: 14px;
   border: 1px solid #ece7de;
   background: #fcfbf8;
 
   span {
     color: #666;
-    font-size: 13px;
-  }
-
-  strong {
-    color: #1a1a1a;
-    font-size: 14px;
-    font-weight: 500;
-    word-break: break-all;
   }
 `;
 
 const ModalFooter = styled.div`
   margin-top: 14px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 `;

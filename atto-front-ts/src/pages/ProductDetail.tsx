@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getProductById } from '../services/productService';
 import { addScrap, getScraps, removeScrap } from '../services/scrapService';
 import { addCartItem } from '../services/cartService';
+import { createPendingOrder } from '../services/orderService';
 import type { IProduct } from '../types/product';
 import { ProductImageSVG } from '../components/common/Placeholders';
 
@@ -22,7 +23,8 @@ const ProductDetail: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [scrapPending, setScrapPending] = useState(false);
-  const variants = useMemo(() => product?.variants ?? [], [product?.variants]);
+  const [buyNowPending, setBuyNowPending] = useState(false);
+  const variants = product?.variants ?? [];
   const sizeLabelToId = (size: string): number => {
     if (size === 'S') return 1;
     if (size === 'M') return 2;
@@ -75,10 +77,7 @@ const ProductDetail: React.FC = () => {
 
   useEffect(() => {
     if (!selectedColor) return;
-
-    const selectedVariant = variants.find((v) => v.color === selectedColor);
-    const blocked = Boolean(selectedSize && !selectedVariant?.sizes.includes(selectedSize));
-    if (blocked) {
+    if (isColorBlocked(selectedColor)) {
       setSelectedColor(null);
     }
   }, [selectedSize, selectedColor, variants]);
@@ -121,6 +120,33 @@ const ProductDetail: React.FC = () => {
       } catch (error) {
         const message = error instanceof Error ? error.message : '장바구니 추가에 실패했습니다.';
         alert(message);
+      }
+    };
+    run();
+  };
+
+  const handleBuyNow = () => {
+    if (!product) return;
+    if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
+      alert('옵션을 선택해주세요.');
+      return;
+    }
+    if (buyNowPending) return;
+
+    const run = async () => {
+      setBuyNowPending(true);
+      try {
+        const { orderNo } = await createPendingOrder({
+          totalAmount: Number(product.price),
+          memo: `[바로구매] productId=${product.id}, color=${selectedColor}, size=${selectedSize ?? ''}`,
+        });
+        alert(`주문이 생성되었습니다. (주문번호: ${orderNo})`);
+        navigate('/mypage/orders');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '주문 생성에 실패했습니다.';
+        alert(message);
+      } finally {
+        setBuyNowPending(false);
       }
     };
     run();
@@ -250,7 +276,9 @@ const ProductDetail: React.FC = () => {
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn type="button">바로구매</AddToCartBtn>
+            <AddToCartBtn type="button" onClick={handleBuyNow} disabled={buyNowPending}>
+              {buyNowPending ? '처리 중...' : '바로구매'}
+            </AddToCartBtn>
             <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
             <ScrapBtn type="button" $active={isScrapped} onClick={handleScrap} disabled={scrapPending}>
               <HeartIcon viewBox="0 0 24 24" fill={isScrapped ? '#ef4444' : 'none'} stroke={isScrapped ? '#ef4444' : 'currentColor'} strokeWidth="1.9">

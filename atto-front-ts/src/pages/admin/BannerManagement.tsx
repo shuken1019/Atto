@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 const BANNER_STORAGE_KEY = 'atto_banner_settings';
@@ -9,33 +9,24 @@ type BannerSettings = {
   imageDataUrl: string;
 };
 
-const getInitialBannerSettings = (): BannerSettings => {
-  const fallback: BannerSettings = {
-    mainText: 'ESSENTIALS',
-    seasonText: '',
-    imageDataUrl: '',
-  };
-
-  try {
-    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-    if (!raw) return fallback;
-
-    const parsed = JSON.parse(raw) as Partial<BannerSettings>;
-    return {
-      mainText: parsed.mainText ?? fallback.mainText,
-      seasonText: parsed.seasonText ?? fallback.seasonText,
-      imageDataUrl: parsed.imageDataUrl ?? fallback.imageDataUrl,
-    };
-  } catch {
-    return fallback;
-  }
-};
-
 const BannerManagement: React.FC = () => {
-  const [initialSettings] = useState(() => getInitialBannerSettings());
-  const [mainText, setMainText] = useState(initialSettings.mainText);
-  const [seasonText, setSeasonText] = useState(initialSettings.seasonText);
-  const [imageDataUrl, setImageDataUrl] = useState(initialSettings.imageDataUrl);
+  const [mainText, setMainText] = useState('ESSENTIALS');
+  const [seasonText, setSeasonText] = useState('');
+  const [imageDataUrl, setImageDataUrl] = useState('');
+
+  useEffect(() => {
+    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<BannerSettings>;
+      setMainText(parsed.mainText ?? 'ESSENTIALS');
+      setSeasonText(parsed.seasonText ?? '');
+      setImageDataUrl(parsed.imageDataUrl ?? '');
+    } catch {
+      // ignore invalid storage value
+    }
+  }, []);
 
   const handleChangeImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,33 +59,18 @@ const BannerManagement: React.FC = () => {
         <SectionTitle>상단 배너 설정</SectionTitle>
         <InputGroup>
           <Label>배너 메인 문구</Label>
-          <Input
-            placeholder="예: ESSENTIALS"
-            value={mainText}
-            onChange={(e) => setMainText(e.target.value)}
-          />
+          <Input placeholder="ex) ESSENTIALS" value={mainText} onChange={(e) => setMainText(e.target.value)} />
         </InputGroup>
         <InputGroup>
           <Label>시즌 문구</Label>
-          <Input
-            placeholder="예: SPRING / SUMMER 2024"
-            value={seasonText}
-            onChange={(e) => setSeasonText(e.target.value)}
-          />
+          <Input placeholder="ex) SPRING / SUMMER 2026" value={seasonText} onChange={(e) => setSeasonText(e.target.value)} />
         </InputGroup>
         <InputGroup>
           <Label>배너 이미지</Label>
-          <HelperText>권장 기본 사이즈: 1600 x 600px (JPG/PNG)</HelperText>
-          <ImagePreviewBox>
-            {imageDataUrl ? <img src={imageDataUrl} alt="배너 미리보기" /> : '현재 배너 이미지'}
-          </ImagePreviewBox>
+          <HelperText>권장 사이즈: 1600 x 600px (JPG/PNG)</HelperText>
+          <ImagePreviewBox>{imageDataUrl ? <img src={imageDataUrl} alt="배너 미리보기" /> : '현재 배너 이미지 없음'}</ImagePreviewBox>
           <UploadBtn as="label" htmlFor="banner-image-input">이미지 변경</UploadBtn>
-          <HiddenInput
-            id="banner-image-input"
-            type="file"
-            accept="image/*"
-            onChange={handleChangeImage}
-          />
+          <HiddenInput id="banner-image-input" type="file" accept="image/*" onChange={handleChangeImage} />
         </InputGroup>
 
         <SaveBtn type="button" onClick={handleSave}>메인 배너 저장</SaveBtn>
@@ -106,16 +82,17 @@ const BannerManagement: React.FC = () => {
 export default BannerManagement;
 
 const Container = styled.div`
+  margin: -40px;
   padding: 24px;
   background: #f7f5f0;
-  min-height: 100vh;
+  min-height: calc(100vh - 80px);
 `;
 
 const Title = styled.h2`
-  font-size: 30px;
+  font-size: 21px;
   font-family: 'Noto Sans KR', sans-serif;
   font-weight: 500;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 `;
 
 const EditForm = styled.div`
@@ -123,7 +100,6 @@ const EditForm = styled.div`
   background: #fff;
   border: 1px solid #ece7de;
   padding: 30px;
-  border-radius: 0;
 `;
 
 const SectionTitle = styled.h4`
@@ -146,15 +122,14 @@ const Label = styled.label`
 `;
 
 const HelperText = styled.p`
-  margin-top: -2px;
   margin-bottom: 8px;
   font-size: 12px;
-  color: #888;
+  color: #666;
 `;
 
 const Input = styled.input`
   width: 100%;
-  border: 1px solid #d9d9d9;
+  border: 1px solid #ddd;
   padding: 10px 12px;
   font-size: 14px;
   background: #fff;
@@ -162,30 +137,26 @@ const Input = styled.input`
 
 const ImagePreviewBox = styled.div`
   width: 100%;
-  height: 180px;
-  border: 1px dashed #d9d9d9;
-  color: #888;
+  min-height: 140px;
+  border: 1px dashed #d4cfc5;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #888;
   margin-bottom: 10px;
-  overflow: hidden;
 
   img {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
     display: block;
   }
 `;
 
 const UploadBtn = styled.button`
-  border: 1px solid #d9d9d9;
   background: #fff;
-  font-size: 13px;
+  border: 1px solid #d9d9d9;
   padding: 8px 12px;
   cursor: pointer;
-  border-radius: 0;
 `;
 
 const HiddenInput = styled.input`
@@ -193,12 +164,10 @@ const HiddenInput = styled.input`
 `;
 
 const SaveBtn = styled.button`
-  width: 100%;
-  padding: 16px;
+  border: none;
   background: #333;
   color: #fff;
-  border: none;
-  font-weight: 600;
-  margin-top: 10px;
+  height: 44px;
+  padding: 0 16px;
   cursor: pointer;
 `;

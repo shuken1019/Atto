@@ -2,24 +2,27 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCartItems, removeCartItem, updateCartItemQuantity, type CartItem } from '../services/cartService';
+import { createPendingOrder } from '../services/orderService';
 
 const Cart: React.FC = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkoutPending, setCheckoutPending] = useState(false);
+
+  const load = async () => {
+    try {
+      const items = await getCartItems();
+      setCartItems(items);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '장바구니 조회 실패';
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const items = await getCartItems();
-        setCartItems(items);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '장바구니 조회 실패';
-        alert(message);
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
 
@@ -61,14 +64,32 @@ const Cart: React.FC = () => {
     run();
   };
 
-  const handleCheckout = () => {
-    alert('결제 기능은 다음 단계에서 연결합니다.');
-    navigate('/');
-  };
-
   const subTotal = cartItems.reduce((acc, cur) => acc + cur.productPrice * cur.quantity, 0);
   const shippingFee = subTotal > 100000 ? 0 : 3000;
   const total = subTotal + shippingFee;
+
+  const handleCheckout = async () => {
+    if (checkoutPending) return;
+    if (cartItems.length === 0) return;
+
+    setCheckoutPending(true);
+    try {
+      const { orderNo } = await createPendingOrder({
+        totalAmount: total,
+        memo: `[장바구니 주문] items=${cartItems.length}`,
+      });
+
+      await Promise.allSettled(cartItems.map((item) => removeCartItem(item.cartId)));
+      setCartItems([]);
+      alert(`주문이 생성되었습니다. (주문번호: ${orderNo})`);
+      navigate('/mypage/orders');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '주문 생성 실패';
+      alert(message);
+    } finally {
+      setCheckoutPending(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -151,7 +172,9 @@ const Cart: React.FC = () => {
               <span>₩{total.toLocaleString()}</span>
             </TotalRow>
 
-            <CheckoutBtn onClick={handleCheckout}>CHECKOUT</CheckoutBtn>
+            <CheckoutBtn onClick={handleCheckout} disabled={checkoutPending}>
+              {checkoutPending ? 'PROCESSING...' : 'CHECKOUT'}
+            </CheckoutBtn>
           </SummaryBox>
         </SummarySection>
       </CartLayout>
@@ -352,6 +375,11 @@ const CheckoutBtn = styled.button`
   &:hover {
     background-color: #333;
   }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const EmptyContainer = styled.div`
@@ -382,4 +410,3 @@ const ShopLink = styled(Link)`
     background-color: #333;
   }
 `;
-

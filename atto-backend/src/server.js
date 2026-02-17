@@ -59,6 +59,17 @@ const toIntOrNull = (value) => {
   if (!Number.isInteger(n)) return null;
   return n;
 };
+const buildOrderNo = (createdAt, orderId) => {
+  const d = new Date(createdAt);
+  const id = Number(orderId);
+  if (Number.isNaN(d.getTime()) || !Number.isInteger(id) || id <= 0) {
+    return String(orderId ?? "");
+  }
+  const yyyy = String(d.getFullYear());
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}-${String(id).padStart(6, "0")}`;
+};
 const mimeToExt = (mimeType) => {
   const mime = String(mimeType ?? "").toLowerCase();
   if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
@@ -915,10 +926,121 @@ app.delete("/api/users/:userId/cart/:cartId", async (req, res) => {
   }
 });
 
+app.get("/api/admin/users", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT userId, id, name, phone, mail, COALESCE(role, 'USER') AS role, created_at, updated_at " +
+      "FROM `user` ORDER BY created_at DESC, userId DESC"
+    );
+    return res.json({ ok: true, users: rows });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "admin user list fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.patch("/api/admin/users/:userId/role", async (req, res) => {
+  const userId = Number(req.params.userId);
+  const role = String(req.body?.role ?? "").trim().toUpperCase();
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId" });
+  }
+  if (role !== "ADMIN" && role !== "USER") {
+    return res.status(400).json({ ok: false, message: "invalid role" });
+  }
+
+  try {
+    const [result] = await pool.query("UPDATE `user` SET role = ?, updated_at = NOW() WHERE userId = ?", [role, userId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "user not found" });
+    }
+    return res.json({ ok: true, userId, role });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "role update failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.get("/api/admin/dashboard", async (_req, res) => {
+  try {
+    const [userCountRows] = await pool.query("SELECT COUNT(*) AS cnt FROM `user`");
+    const [newUserRows] = await pool.query(
+      "SELECT DATE(created_at) AS d, COUNT(*) AS cnt FROM `user` " +
+      "WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) " +
+      "GROUP BY DATE(created_at)"
+    );
+    const [orderRows] = await pool.query(
+      "SELECT status, COUNT(*) AS cnt FROM orders GROUP BY status"
+    );
+    const [pendingPaymentRows] = await pool.query(
+      "SELECT COUNT(*) AS cnt FROM payment WHERE status = 'PENDING'"
+    );
+    const [salesRows] = await pool.query(
+      "SELECT COALESCE(SUM(amount), 0) AS total FROM payment WHERE status = 'COMPLETED'"
+    );
+    const [sales7Rows] = await pool.query(
+      "SELECT DATE(updated_at) AS d, COALESCE(SUM(amount), 0) AS total FROM payment " +
+      "WHERE status = 'COMPLETED' AND updated_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) " +
+      "GROUP BY DATE(updated_at)"
+    );
+    const [recentOrdersRows] = await pool.query(
+      "SELECT o.orderId, o.created_at, o.totalAmount, o.status, u.name AS userName " +
+      "FROM orders o LEFT JOIN `user` u ON u.userId = o.userId " +
+      "ORDER BY o.created_at DESC, o.orderId DESC LIMIT 10"
+    );
+
+    let lowStockRows = [];
+    const colorMeta = await resolveColorColumns();
+    const colorNameExpr = colorMeta.useJoin && colorMeta.hasName ? "co.name" : "NULL";
+    const colorJoin = colorMeta.useJoin ? "LEFT JOIN color co ON co.colorId = po.colorId " : "";
+    try {
+      const [rows] = await pool.query(
+        "SELECT p.productId, p.name, po.colorId, po.sizeId, " +
+        `${colorNameExpr} AS colorName, ` +
+        "CASE po.sizeId WHEN 1 THEN 'S' WHEN 2 THEN 'M' WHEN 3 THEN 'L' ELSE CONCAT('SIZE-', po.sizeId) END AS sizeLabel, " +
+        "po.stock " +
+        "FROM product_option po JOIN product p ON p.productId = po.productId " +
+        colorJoin +
+        "WHERE po.stock <= 5 ORDER BY po.stock ASC, p.productId DESC LIMIT 10"
+      );
+      lowStockRows = Array.isArray(rows) ? rows : [];
+    } catch (_error) {
+      const fallbackColorMeta = await resolveColorColumns();
+      const fallbackColorNameExpr = fallbackColorMeta.useJoin && fallbackColorMeta.hasName ? "co.name" : "NULL";
+      const fallbackColorJoin = fallbackColorMeta.useJoin ? "LEFT JOIN color co ON co.colorId = pc.colorId " : "";
+      const [rows] = await pool.query(
+        "SELECT p.productId, p.name, pc.colorId, NULL AS sizeId, " +
+        `${fallbackColorNameExpr} AS colorName, ` +
+        "NULL AS sizeLabel, " +
+        "pc.stock " +
+        "FROM product_color pc JOIN product p ON p.productId = pc.productId " +
+        fallbackColorJoin +
+        "WHERE pc.stock <= 5 ORDER BY pc.stock ASC, p.productId DESC LIMIT 10"
+      );
+      lowStockRows = Array.isArray(rows) ? rows : [];
+    }
+
+    return res.json({
+      ok: true,
+      summary: {
+        totalUsers: Number(userCountRows?.[0]?.cnt ?? 0),
+        pendingPayments: Number(pendingPaymentRows?.[0]?.cnt ?? 0),
+        completedSalesTotal: Number(salesRows?.[0]?.total ?? 0),
+      },
+      newUsersByDay: newUserRows,
+      ordersByStatus: orderRows,
+      salesByDay: sales7Rows,
+      recentOrders: recentOrdersRows,
+      lowStockItems: lowStockRows,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "admin dashboard fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
 app.get("/api/admin/products", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.created_at, " +
+      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.created_at, p.isLive, " +
         "COALESCE(SUM(pc.stock), 0) AS totalStock " +
         "FROM product p " +
         "LEFT JOIN product_color pc ON pc.productId = p.productId " +
@@ -973,7 +1095,7 @@ app.get("/api/admin/products/:productId", async (req, res) => {
 
   try {
     const [products] = await pool.query(
-      "SELECT productId, name, description, price, categoryId, status, thumbnail, created_at FROM product WHERE productId = ? LIMIT 1",
+      "SELECT productId, name, description, price, categoryId, status, thumbnail, created_at, isLive FROM product WHERE productId = ? LIMIT 1",
       [productId]
     );
     if (!Array.isArray(products) || products.length === 0) {
@@ -1011,6 +1133,7 @@ app.post("/api/admin/products", async (req, res) => {
     thumbnail,
     thumbnailDataUrl,
     thumbnailName,
+    isLive,
     productColors,
     productOptions,
   } = req.body ?? {};
@@ -1022,6 +1145,7 @@ app.post("/api/admin/products", async (req, res) => {
     .trim()
     .toUpperCase();
   const safeThumbnail = String(thumbnail ?? "").trim();
+  const safeIsLive = Number(isLive) === 1 ? 1 : 0;
 
   if (!safeName) {
     return res.status(400).json({ ok: false, message: "name required" });
@@ -1057,8 +1181,8 @@ app.post("/api/admin/products", async (req, res) => {
     }
 
     const [insertProductResult] = await conn.query(
-      "INSERT INTO product (name, description, price, categoryId, status, thumbnail, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
-      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail]
+      "INSERT INTO product (name, description, price, categoryId, status, thumbnail, isLive, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, safeIsLive]
     );
     const newProductId = Number(insertProductResult.insertId);
 
@@ -1124,6 +1248,207 @@ app.post("/api/admin/products", async (req, res) => {
   }
 });
 
+app.put("/api/admin/products/:productId", async (req, res) => {
+  const productId = Number(req.params.productId);
+  const {
+    name,
+    description,
+    price,
+    categoryId,
+    category,
+    status,
+    thumbnail,
+    thumbnailDataUrl,
+    thumbnailName,
+    isLive,
+    productColors,
+    productOptions,
+  } = req.body ?? {};
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid productId" });
+  }
+
+  const safeName = String(name ?? "").trim();
+  const safeDescription = String(description ?? "").trim();
+  const safePrice = Number(price);
+  const safeStatus = String(status ?? "ON_SALE")
+    .trim()
+    .toUpperCase();
+  const safeThumbnail = String(thumbnail ?? "").trim();
+
+  if (!safeName) {
+    return res.status(400).json({ ok: false, message: "name required" });
+  }
+  if (!Number.isInteger(safePrice) || safePrice < 0) {
+    return res.status(400).json({ ok: false, message: "price must be non-negative integer" });
+  }
+  if (!PRODUCT_STATUS.has(safeStatus)) {
+    return res.status(400).json({ ok: false, message: "invalid status" });
+  }
+
+  const normalizedColors = Array.isArray(productColors) ? productColors : [];
+  const normalizedOptions = Array.isArray(productOptions) ? productOptions : [];
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [existingProducts] = await conn.query(
+      "SELECT productId, thumbnail, COALESCE(isLive, 0) AS isLive FROM product WHERE productId = ? LIMIT 1",
+      [productId]
+    );
+    if (!Array.isArray(existingProducts) || existingProducts.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, message: "product not found" });
+    }
+    const existing = existingProducts[0];
+
+    let finalThumbnail = safeThumbnail || String(existing.thumbnail ?? "");
+    if (thumbnailDataUrl) {
+      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
+    }
+    if (!finalThumbnail) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "thumbnail required" });
+    }
+
+    const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
+    if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {
+      await conn.rollback();
+      return res.status(400).json({ ok: false, message: "valid categoryId/category required" });
+    }
+
+    const safeIsLive =
+      typeof isLive === "undefined" || isLive === null
+        ? Number(existing.isLive ?? 0) === 1
+          ? 1
+          : 0
+        : Number(isLive) === 1
+          ? 1
+          : 0;
+
+    await conn.query(
+      "UPDATE product SET name = ?, description = ?, price = ?, categoryId = ?, status = ?, thumbnail = ?, isLive = ? WHERE productId = ?",
+      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, safeIsLive, productId]
+    );
+
+    await conn.query("DELETE FROM product_option WHERE productId = ?", [productId]);
+    await conn.query("DELETE FROM product_color WHERE productId = ?", [productId]);
+
+    for (const row of normalizedColors) {
+      const colorIdValue = toIntOrNull(row?.colorId);
+      const stockValue = toIntOrNull(row?.stock);
+
+      if (!colorIdValue || colorIdValue <= 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productColors[].colorId must be positive integer" });
+      }
+      if (stockValue === null || stockValue < 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productColors[].stock must be non-negative integer" });
+      }
+
+      await conn.query(
+        "INSERT INTO product_color (productId, colorId, stock) VALUES (?, ?, ?)",
+        [productId, colorIdValue, stockValue]
+      );
+    }
+
+    for (const row of normalizedOptions) {
+      const colorIdValue = toIntOrNull(row?.colorId);
+      const sizeIdValue = toIntOrNull(row?.sizeId);
+      const stockValue = toIntOrNull(row?.stock);
+      const additionalPriceValue = toIntOrNull(row?.additionalPrice ?? 0);
+
+      if (!colorIdValue || colorIdValue <= 0 || !sizeIdValue || sizeIdValue <= 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].colorId/sizeId must be positive integer" });
+      }
+      if (stockValue === null || stockValue < 0) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].stock must be non-negative integer" });
+      }
+      if (additionalPriceValue === null) {
+        await conn.rollback();
+        return res.status(400).json({ ok: false, message: "productOptions[].additionalPrice must be integer" });
+      }
+
+      await conn.query(
+        "INSERT INTO product_option (productId, colorId, sizeId, stock, additionalPrice) VALUES (?, ?, ?, ?, ?)",
+        [productId, colorIdValue, sizeIdValue, stockValue, additionalPriceValue]
+      );
+    }
+
+    await conn.commit();
+    return res.json({ ok: true, productId, message: "product updated" });
+  } catch (error) {
+    if (conn) {
+      await conn.rollback();
+    }
+    return res.status(500).json({ ok: false, message: "product update failed", error: String(error?.message ?? error) });
+  } finally {
+    if (conn) {
+      conn.release();
+    }
+  }
+});
+
+app.patch("/api/admin/products/:productId/live", async (req, res) => {
+  const productId = Number(req.params.productId);
+  const isLive = Number(req.body?.isLive) === 1 ? 1 : 0;
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid productId" });
+  }
+
+  try {
+    const [result] = await pool.query(
+      "UPDATE product SET isLive = ? WHERE productId = ?",
+      [isLive, productId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, message: "product not found" });
+    }
+    return res.json({ ok: true, productId, isLive });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "product live update failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.delete("/api/admin/products/:productId", async (req, res) => {
+  const productId = Number(req.params.productId);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid productId" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    await conn.query("DELETE FROM product_option WHERE productId = ?", [productId]);
+    await conn.query("DELETE FROM product_color WHERE productId = ?", [productId]);
+    await conn.query("DELETE FROM scrap WHERE productId = ?", [productId]);
+    await conn.query("DELETE FROM cart WHERE productId = ?", [productId]);
+
+    const [result] = await conn.query("DELETE FROM product WHERE productId = ?", [productId]);
+    if (result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, message: "product not found" });
+    }
+
+    await conn.commit();
+    return res.json({ ok: true, productId });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ ok: false, message: "product delete failed", error: String(error?.message ?? error) });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 const VALID_ORDER_STATUSES = new Set([
   "ORDERED",
   "PREPARING",
@@ -1159,7 +1484,8 @@ app.post("/api/users/:userId/orders", async (req, res) => {
       "INSERT INTO orders (userId, paymentId, addressId, totalAmount, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'ORDERED', NOW(), NOW())",
       [userId, paymentId ?? null, addressId ?? null, amount]
     );
-    return res.status(201).json({ ok: true, orderId: insertResult.insertId });
+    const orderId = Number(insertResult.insertId);
+    return res.status(201).json({ ok: true, orderId, orderNo: buildOrderNo(new Date(), orderId) });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "order create failed", error: String(error?.message ?? error) });
   }
@@ -1181,7 +1507,11 @@ app.get("/api/users/:userId/orders", async (req, res) => {
       "WHERE o.userId = ? ORDER BY o.created_at DESC, o.orderId DESC",
       [userId]
     );
-    return res.json({ ok: true, orders: rows });
+    const normalized = (Array.isArray(rows) ? rows : []).map((row) => ({
+      ...row,
+      orderNo: buildOrderNo(row.created_at, row.orderId),
+    }));
+    return res.json({ ok: true, orders: normalized });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "order list fetch failed", error: String(error?.message ?? error) });
   }
@@ -1296,6 +1626,33 @@ app.patch("/api/admin/orders/:orderId/status", async (req, res) => {
     return res.json({ ok: true, message: "二쇰Ц ?곹깭媛 蹂寃쎈릺?덉뒿?덈떎." });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "order status update failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.get("/api/admin/orders", async (_req, res) => {
+  try {
+    await autoAdvancePreparing();
+
+    const [rows] = await pool.query(
+      "SELECT " +
+        "o.orderId, o.userId, o.paymentId, o.addressId, o.totalAmount, o.status, o.created_at, o.updated_at, " +
+        "u.id AS userLoginId, u.name AS userName, u.phone AS userPhone, u.mail AS userEmail, " +
+        "p.status AS paymentStatus, p.paymentMethod, p.depositorName, p.bankName, p.memo, p.updated_at AS paymentUpdatedAt, " +
+        "a.recipientName, a.phone AS addressPhone, a.zipcode, a.address1, a.address2, a.isDefault " +
+      "FROM orders o " +
+      "LEFT JOIN `user` u ON u.userId = o.userId " +
+      "LEFT JOIN payment p ON p.paymentId = o.paymentId " +
+      "LEFT JOIN address a ON a.addressId = o.addressId " +
+      "ORDER BY o.created_at DESC, o.orderId DESC"
+    );
+
+    const normalized = (Array.isArray(rows) ? rows : []).map((row) => ({
+      ...row,
+      orderNo: buildOrderNo(row.created_at, row.orderId),
+    }));
+    return res.json({ ok: true, orders: normalized });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "admin order list fetch failed", error: String(error?.message ?? error) });
   }
 });
 

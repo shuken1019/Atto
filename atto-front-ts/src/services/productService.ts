@@ -4,7 +4,7 @@ import { mockProducts } from '../mocks/product';
 
 const API_BASE = API_BASE_URL;
 
-type AdminProductRow = {
+export type AdminProductRow = {
   productId: number;
   name: string;
   description: string;
@@ -13,6 +13,8 @@ type AdminProductRow = {
   status: 'ON_SALE' | 'SOLD_OUT' | 'HIDDEN';
   thumbnail: string | null;
   created_at: string;
+  isLive?: number | boolean;
+  totalStock?: number;
 };
 
 type AdminProductDetail = {
@@ -44,6 +46,7 @@ const isNewByCreatedAt = (createdAt: string): boolean => {
 };
 
 const fallbackImage = (productId: number): string => `https://picsum.photos/seed/product-${productId}/900/1200`;
+
 const sizeLabelFromId = (sizeId: number): string => {
   if (sizeId === 1) return 'S';
   if (sizeId === 2) return 'M';
@@ -53,6 +56,7 @@ const sizeLabelFromId = (sizeId: number): string => {
 
 const toBaseProduct = (row: AdminProductRow): IProduct => {
   const thumbnailImage = row.thumbnail && row.thumbnail.trim() ? row.thumbnail : fallbackImage(Number(row.productId));
+
   return {
     id: Number(row.productId),
     name: String(row.name ?? ''),
@@ -68,6 +72,7 @@ const toBaseProduct = (row: AdminProductRow): IProduct => {
     keyInfo: [],
     variants: [],
     isNew: isNewByCreatedAt(String(row.created_at ?? '')),
+    isLive: Number(row.isLive ?? 0) === 1,
   };
 };
 
@@ -91,16 +96,44 @@ const fetchColorMap = async (): Promise<Map<number, ColorRow>> => {
   return map;
 };
 
+export const getAdminProducts = async (): Promise<AdminProductRow[]> => {
+  const response = await fetch(`${API_BASE}/api/admin/products`);
+  const result = await response.json();
+
+  if (!response.ok || !result.ok || !Array.isArray(result.products)) {
+    throw new Error(result?.message ?? 'admin product list fetch failed');
+  }
+
+  return result.products as AdminProductRow[];
+};
+
+export const toggleAdminProductLive = async (productId: number, isLive: boolean): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/admin/products/${productId}/live`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isLive: isLive ? 1 : 0 }),
+  });
+  const result = await response.json();
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result?.message ?? 'live update failed');
+  }
+};
+
+export const deleteAdminProduct = async (productId: number): Promise<void> => {
+  const response = await fetch(`${API_BASE}/api/admin/products/${productId}`, {
+    method: 'DELETE',
+  });
+  const result = await response.json();
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result?.message ?? 'product delete failed');
+  }
+};
+
 export const getProducts = async (): Promise<IProduct[]> => {
   try {
-    const response = await fetch(`${API_BASE}/api/admin/products`);
-    const result = await response.json();
-
-    if (!response.ok || !result.ok || !Array.isArray(result.products)) {
-      return mockProducts;
-    }
-
-    const rows = result.products as AdminProductRow[];
+    const rows = await getAdminProducts();
     return rows
       .filter((row) => String(row.status ?? 'ON_SALE') !== 'HIDDEN')
       .map((row) => toBaseProduct(row));
@@ -156,7 +189,7 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
     });
 
     product.keyInfo = [
-      `재고 합계: ${(result.productColors ?? []).reduce((sum, row) => sum + Number(row.stock ?? 0), 0)}개`,
+      `Stock total: ${(result.productColors ?? []).reduce((sum, row) => sum + Number(row.stock ?? 0), 0)}`,
     ];
 
     product.sizeGuide = Array.from(sizeLabelById.values()).map((size) => ({
@@ -171,3 +204,4 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
     return mockProducts.find((product) => product.id === id);
   }
 };
+

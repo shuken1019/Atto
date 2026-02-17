@@ -8,6 +8,7 @@ type StoredUser = {
 
 type OrderRow = {
   orderId: number;
+  orderNo?: string;
   userId: number;
   paymentId: number | null;
   addressId: number | null;
@@ -108,12 +109,12 @@ const OrderList: React.FC = () => {
           <OrderItem key={order.orderId}>
             <OrderHeader>
               <OrderDate>{formatDate(order.created_at)}</OrderDate>
-              <OrderNo>ORD-{String(order.orderId).padStart(6, '0')}</OrderNo>
+              <OrderNo>{order.orderNo ?? `ORD-${String(order.orderId).padStart(6, '0')}`}</OrderNo>
               <Status className={order.status === 'DELIVERED' ? 'done' : ''}>{statusLabel(order)}</Status>
             </OrderHeader>
             <ProductInfo>
               <Info>
-                <ProdName>주문번호 #{order.orderId}</ProdName>
+                <ProdName>주문번호 {order.orderNo ?? `#${order.orderId}`}</ProdName>
                 <Price>{order.totalAmount.toLocaleString()}원</Price>
               </Info>
             </ProductInfo>
