@@ -14,6 +14,8 @@ type AdminOrder = {
   userName: string | null;
   paymentStatus: 'PENDING' | 'COMPLETED' | 'REFUNDED' | null;
   recipientName: string | null;
+  userPhone?: string | null;
+  recipientPhone?: string | null;
   address1: string | null;
   address2: string | null;
 };
@@ -57,6 +59,9 @@ const OrderManagement: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [statusDraft, setStatusDraft] = useState<Record<number, AdminOrder['status']>>({});
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [trackingNo, setTrackingNo] = useState('');
+  const [smsTemplate, setSmsTemplate] = useState('안녕하세요. 주문하신 상품이 출고되었습니다. 운송장번호: {송장번호}');
 
   const loadOrders = async () => {
     try {
@@ -149,6 +154,34 @@ const OrderManagement: React.FC = () => {
     }
   };
 
+  const openOrderDetail = (order: AdminOrder) => {
+    setSelectedOrder(order);
+    setTrackingNo('');
+    setSmsTemplate('안녕하세요. 주문하신 상품이 출고되었습니다. 운송장번호: {송장번호}');
+  };
+
+  const closeOrderDetail = () => {
+    setSelectedOrder(null);
+    setTrackingNo('');
+  };
+
+  const handleSendSms = async () => {
+    if (!selectedOrder) return;
+    const phone = String(selectedOrder.recipientPhone ?? selectedOrder.userPhone ?? '').trim();
+    if (!trackingNo.trim()) {
+      alert('운송장번호를 입력해주세요.');
+      return;
+    }
+
+    const message = smsTemplate.replace('{송장번호}', trackingNo.trim());
+    try {
+      await navigator.clipboard.writeText(`[${phone || '연락처 없음'}] ${message}`);
+      alert('문자 전송 내용이 클립보드에 복사되었습니다. 실제 SMS 연동은 다음 단계에서 연결하면 됩니다.');
+    } catch {
+      alert(`문자 전송 내용:\n수신번호: ${phone || '연락처 없음'}\n${message}`);
+    }
+  };
+
   return (
     <Page>
       <Top>
@@ -191,7 +224,7 @@ const OrderManagement: React.FC = () => {
           <Empty>주문이 없습니다.</Empty>
         ) : (
           filteredOrders.map((order) => (
-            <Row key={order.orderId}>
+            <Row key={order.orderId} onClick={() => openOrderDetail(order)}>
               <div>
                 <strong>{order.orderNo ?? String(order.orderId)}</strong>
                 <small>{new Date(order.created_at).toLocaleString()}</small>
@@ -214,7 +247,7 @@ const OrderManagement: React.FC = () => {
                 <strong>{order.recipientName ?? '-'}</strong>
                 <small>{(order.address1 ?? '').trim()} {(order.address2 ?? '').trim()}</small>
               </div>
-              <ActionCell>
+              <ActionCell onClick={(e) => e.stopPropagation()}>
                 {order.paymentStatus === 'PENDING' && (
                   <MiniButton type="button" disabled={workingId === order.orderId} onClick={() => completePayment(order.orderId)}>
                     입금완료
@@ -222,6 +255,7 @@ const OrderManagement: React.FC = () => {
                 )}
                 <select
                   value={statusDraft[order.orderId] ?? order.status}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) =>
                     setStatusDraft((prev) => ({
                       ...prev,
@@ -243,6 +277,44 @@ const OrderManagement: React.FC = () => {
           ))
         )}
       </Card>
+
+      {selectedOrder && (
+        <>
+          <ModalBackdrop onClick={closeOrderDetail} />
+          <DetailModal>
+            <ModalClose type="button" onClick={closeOrderDetail}>×</ModalClose>
+            <ModalTitle>배송정보 확인</ModalTitle>
+            <InfoGrid>
+              <InfoLabel>주문자명</InfoLabel>
+              <InfoValue>{selectedOrder.userName ?? '-'}</InfoValue>
+              <InfoLabel>배송지</InfoLabel>
+              <InfoValue>{(selectedOrder.address1 ?? '').trim()} {(selectedOrder.address2 ?? '').trim()}</InfoValue>
+              <InfoLabel>주문자 연락처</InfoLabel>
+              <InfoValue>{selectedOrder.recipientPhone ?? selectedOrder.userPhone ?? '-'}</InfoValue>
+            </InfoGrid>
+
+            <FieldLabel htmlFor="tracking-no">운송장번호</FieldLabel>
+            <FieldInput
+              id="tracking-no"
+              value={trackingNo}
+              onChange={(e) => setTrackingNo(e.target.value)}
+              placeholder="운송장번호 입력"
+            />
+
+            <FieldLabel htmlFor="sms-template">문자 문구</FieldLabel>
+            <FieldTextArea
+              id="sms-template"
+              rows={3}
+              value={smsTemplate}
+              onChange={(e) => setSmsTemplate(e.target.value)}
+            />
+
+            <ModalActions>
+              <SendButton type="button" onClick={handleSendSms}>문자 전송</SendButton>
+            </ModalActions>
+          </DetailModal>
+        </>
+      )}
     </Page>
   );
 };
@@ -270,13 +342,13 @@ const Top = styled.div`
 `;
 
 const CreateButton = styled.button`
-  height: 42px;
+  height:28px;
   padding: 0 16px;
   border: none;
-  background: #111827;
+  background: #1b0e08;
   color: #fff;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 `;
 
@@ -342,6 +414,12 @@ const Row = styled.div`
   padding: 12px 14px;
   border-bottom: 1px solid #f0f0f0;
   align-items: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+
+  &:hover {
+    background: #fafafa;
+  }
 
   strong {
     display: block;
@@ -371,6 +449,7 @@ const ActionCell = styled.div`
     height: 34px;
     border: 1px solid #d1d5db;
     padding: 0 8px;
+    font-size: 12px;
   }
 `;
 
@@ -399,3 +478,99 @@ const Empty = styled.div`
   color: #6b7280;
   font-size: 14px;
 `;
+
+const ModalBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.42);
+  z-index: 90;
+`;
+
+const DetailModal = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 520px);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  padding: 22px 18px 16px;
+  z-index: 100;
+`;
+
+const ModalClose = styled.button`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+`;
+
+const ModalTitle = styled.h3`
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 14px;
+`;
+
+const InfoGrid = styled.div`
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  row-gap: 8px;
+  column-gap: 10px;
+  margin-bottom: 16px;
+`;
+
+const InfoLabel = styled.div`
+  font-size: 13px;
+  color: #6b7280;
+`;
+
+const InfoValue = styled.div`
+  font-size: 14px;
+  color: #111827;
+  font-weight: 500;
+`;
+
+const FieldLabel = styled.label`
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 6px;
+`;
+
+const FieldInput = styled.input`
+  width: 100%;
+  height: 38px;
+  border: 1px solid #d1d5db;
+  padding: 0 10px;
+  font-size: 14px;
+  margin-bottom: 12px;
+`;
+
+const FieldTextArea = styled.textarea`
+  width: 100%;
+  border: 1px solid #d1d5db;
+  padding: 8px 10px;
+  font-size: 13px;
+  resize: vertical;
+`;
+
+const ModalActions = styled.div`
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+`;
+
+const SendButton = styled.button`
+  height: 36px;
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+`;
+
