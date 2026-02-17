@@ -55,11 +55,6 @@ const Shop: React.FC = () => {
 
   return (
     <ShopContainer>
-      <PageHeader>
-        <h2>Shop</h2>
-        <p>Natural mood, comfortable daily wear.</p>
-      </PageHeader>
-
       <ShopLayout>
         {/* 왼쪽 사이드바: 카테고리 */}
         <Sidebar>
@@ -125,34 +120,6 @@ const ShopContainer = styled.div`
 
   @media (max-width: 640px) {
     padding: 26px 14px 70px;
-  }
-`;
-
-const PageHeader = styled.div`
-  text-align: center;
-  margin-bottom: 60px;
-  
-  h2 {
-    font-size: 36px;
-    margin-bottom: 12px;
-    font-weight: 400;
-  }
-  p {
-    color: #666;
-    font-size: 15px;
-  }
-
-  @media (max-width: 640px) {
-    margin-bottom: 34px;
-
-    h2 {
-      font-size: 30px;
-      margin-bottom: 8px;
-    }
-
-    p {
-      font-size: 14px;
-    }
   }
 `;
 
