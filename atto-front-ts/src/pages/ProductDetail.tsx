@@ -6,7 +6,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getProductById } from '../services/productService';
 import { addScrap, getScraps, removeScrap } from '../services/scrapService';
 import { addCartItem } from '../services/cartService';
-import { createPendingOrder } from '../services/orderService';
 import type { IProduct } from '../types/product';
 import { ProductImageSVG } from '../components/common/Placeholders';
 
@@ -22,8 +21,10 @@ const ProductDetail: React.FC = () => {
   const [isScrapped, setIsScrapped] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [isBuyNowModalOpen, setIsBuyNowModalOpen] = useState(false);
+  const [buyNowQty, setBuyNowQty] = useState(1);
   const [scrapPending, setScrapPending] = useState(false);
-  const [buyNowPending, setBuyNowPending] = useState(false);
+  const [buyNowPending] = useState(false);
   const variants = product?.variants ?? [];
   const sizeLabelToId = (size: string): number => {
     if (size === 'S') return 1;
@@ -125,31 +126,31 @@ const ProductDetail: React.FC = () => {
     run();
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNowClick = () => {
     if (!product) return;
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
       alert('옵션을 선택해주세요.');
       return;
     }
-    if (buyNowPending) return;
+    setIsBuyNowModalOpen(true);
+  };
 
-    const run = async () => {
-      setBuyNowPending(true);
-      try {
-        const { orderNo } = await createPendingOrder({
-          totalAmount: Number(product.price),
-          memo: `[바로구매] productId=${product.id}, color=${selectedColor}, size=${selectedSize ?? ''}`,
-        });
-        alert(`주문이 생성되었습니다. (주문번호: ${orderNo})`);
-        navigate('/mypage/orders');
-      } catch (error) {
-        const message = error instanceof Error ? error.message : '주문 생성에 실패했습니다.';
-        alert(message);
-      } finally {
-        setBuyNowPending(false);
-      }
-    };
-    run();
+  const handleConfirmBuyNow = () => {
+    if (!product || buyNowPending) return;
+    const qty = Math.max(1, Math.min(10, buyNowQty));
+
+    setIsBuyNowModalOpen(false);
+    navigate('/checkout-preview', {
+      state: {
+        productId: product.id,
+        productName: product.name,
+        thumbnail: product.thumbnailImage,
+        price: Number(product.price),
+        color: selectedColor,
+        size: selectedSize,
+        qty,
+      },
+    });
   };
 
   const shareUrl = window.location.href;
@@ -276,7 +277,7 @@ const ProductDetail: React.FC = () => {
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn type="button" onClick={handleBuyNow} disabled={buyNowPending}>
+            <AddToCartBtn type="button" onClick={handleBuyNowClick} disabled={buyNowPending}>
               {buyNowPending ? '처리 중...' : '바로구매'}
             </AddToCartBtn>
             <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
@@ -405,6 +406,47 @@ const ProductDetail: React.FC = () => {
               </CartActionBtn>
             </CartActions>
           </CartModal>
+        </>
+      )}
+
+      {isBuyNowModalOpen && product && (
+        <>
+          <CartBackdrop onClick={() => setIsBuyNowModalOpen(false)} />
+          <BuyModal>
+            <BuyHeader>
+              <strong>옵션 선택하기</strong>
+              <button type="button" onClick={() => setIsBuyNowModalOpen(false)}>×</button>
+            </BuyHeader>
+
+            <BuyItemCard>
+              <div>
+                <div className="title">{product.name}</div>
+                <div className="option">{selectedColor ?? '-'} / {selectedSize ?? 'FREE'}</div>
+              </div>
+              <div className="price">₩{product.price.toLocaleString()}</div>
+            </BuyItemCard>
+
+            <QtyRow>
+              <span>수량</span>
+              <QtyControl>
+                <button type="button" onClick={() => setBuyNowQty((q) => Math.max(1, q - 1))} aria-label="수량 감소">-</button>
+                <span>{buyNowQty}</span>
+                <button type="button" onClick={() => setBuyNowQty((q) => Math.min(10, q + 1))} aria-label="수량 증가">+</button>
+              </QtyControl>
+            </QtyRow>
+
+            <SummaryRow>
+              <span>예상 결제금액</span>
+              <strong>₩{(Number(product.price) * buyNowQty).toLocaleString()}</strong>
+            </SummaryRow>
+
+            <BuyActions>
+              <button type="button" onClick={() => { setIsBuyNowModalOpen(false); handleAddToCart(); }}>장바구니</button>
+              <button type="button" className="primary" onClick={handleConfirmBuyNow} disabled={buyNowPending}>
+                {buyNowPending ? '처리 중...' : '구매하기'}
+              </button>
+            </BuyActions>
+          </BuyModal>
         </>
       )}
     </PageWrapper>
@@ -890,6 +932,156 @@ const LoadingMsg = styled.div`
   padding: 100px;
   font-size: 18px;
   color: #888;
+`;
+
+const BuyModal = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 520px);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  z-index: 120;
+  padding: 18px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  @media (max-width: 640px) {
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 18px 18px 90px;
+    overflow-y: auto;
+  }
+`;
+
+const BuyHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+
+  button {
+    border: none;
+    background: transparent;
+    font-size: 26px;
+    color: #9ca3af;
+    cursor: pointer;
+    line-height: 1;
+  }
+`;
+
+const BuyItemCard = styled.div`
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+
+  .title {
+    font-size: 15px;
+    color: #111827;
+    margin-bottom: 6px;
+  }
+
+  .option {
+    font-size: 13px;
+    color: #6b7280;
+  }
+
+  .price {
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+  }
+`;
+
+const QtyRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #111827;
+`;
+
+const QtyControl = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+
+  button {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #111827;
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  span {
+    min-width: 18px;
+    text-align: center;
+    font-weight: 600;
+  }
+`;
+
+const SummaryRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid #f3f4f6;
+  font-size: 15px;
+  color: #111827;
+
+  strong {
+    font-size: 18px;
+    color: #b45309;
+  }
+`;
+
+const BuyActions = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  button {
+    height: 52px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #111827;
+  }
+
+  .primary {
+    background: #111827;
+    color: #fff;
+    border-color: #111827;
+  }
+
+  @media (max-width: 640px) {
+    position: sticky;
+    bottom: -18px;
+    background: #fff;
+    padding-top: 10px;
+    margin-top: 12px;
+  }
 `;
 
 const DetailSection = styled.section`

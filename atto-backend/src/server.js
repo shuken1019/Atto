@@ -19,30 +19,63 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST ?? "atto-production-db.cn602qo04clr.ap-northeast-2.rds.amazonaws.com",
   port: Number(process.env.DB_PORT ?? 3306),
   user: process.env.DB_USER ?? "admin",
-  password: process.env.DB_PASSWORD ?? "atto2026!", // 여기에 실제 바꾼 암호를 넣으세요!
+  password: process.env.DB_PASSWORD ?? "atto12345", // 여기에 실제 바꾼 암호를 넣으세요!
   database: process.env.DB_NAME ?? "atto",
   waitForConnections: true,
   connectionLimit: 10,
 });
 
-// 3. CORS 설정 (배열 형태로 깔끔하게 정리)
-const allowedOrigins = [
+// 3. CORS 설정 (배열/콤마 구분, http/https 변형 허용)
+const rawOrigins = [
   process.env.CORS_ORIGIN,
+  process.env.CORS_ORIGINS,
   'http://localhost:3000',
   'http://localhost:5173',
-  'http://3.37.232.202'
-].filter(Boolean);
+  'http://3.37.232.202',
+  'https://3.37.232.202',
+];
+
+const allowedOrigins = rawOrigins
+  .filter(Boolean)
+  .flatMap((value) => String(value).split(','))
+  .map((value) => value.trim())
+  .filter((value) => value.length > 0);
+
+const allowAllOrigins = allowedOrigins.length === 0 || allowedOrigins.includes('*');
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // same-origin or server-to-server
+  if (allowAllOrigins) return true;
+
+  const normalize = (value) => {
+    try {
+      const withProtocol = value.startsWith('http') ? value : `https://${value}`;
+      const url = new URL(withProtocol);
+      return `${url.protocol}//${url.hostname}`; // ignore port when matching
+    } catch {
+      return value;
+    }
+  };
+
+  const normalizedOrigin = normalize(origin);
+
+  return allowedOrigins.some((allowed) => {
+    if (allowed === '*') return true;
+    const normalizedAllowed = normalize(allowed);
+    return normalizedAllowed === normalizedOrigin;
+  });
+};
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
         return;
       }
       callback(new Error(`Not allowed by CORS: ${origin}`));
     },
-    credentials: true
+    credentials: true,
   })
 );
 
@@ -60,7 +93,7 @@ const CATEGORY_ID_FALLBACK = {
 
 const PRODUCT_STATUS = new Set(["ON_SALE", "SOLD_OUT", "HIDDEN"]);
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://127.0.0.1:${port}`;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://3.37.232.202:${port}`;
 
 const toIntOrNull = (value) => {
   const n = Number(value);
@@ -275,15 +308,6 @@ app.post("/api/auth/signup", async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
 
     const [duplicates] = await conn.query(
       "SELECT id, mail FROM `user` WHERE id = ? OR mail = ? LIMIT 1",
@@ -1509,10 +1533,15 @@ app.get("/api/users/:userId/orders", async (req, res) => {
     await autoAdvancePreparing(userId);
 
     const [rows] = await pool.query(
-      "SELECT o.orderId, o.userId, o.paymentId, o.addressId, o.totalAmount, o.status, o.created_at, o.updated_at, " +
-      "p.status AS paymentStatus, p.paymentMethod, p.depositorName, p.bankName, p.memo, p.updated_at AS paymentUpdatedAt " +
-      "FROM orders o LEFT JOIN payment p ON p.paymentId = o.paymentId " +
-      "WHERE o.userId = ? ORDER BY o.created_at DESC, o.orderId DESC",
+      "SELECT " +
+        "o.orderId, o.userId, o.paymentId, o.addressId, o.totalAmount, o.status, o.created_at, o.updated_at, " +
+        "p.status AS paymentStatus, p.paymentMethod, p.depositorName, p.bankName, p.memo, p.updated_at AS paymentUpdatedAt, " +
+        "a.recipientName, a.phone AS recipientPhone, a.address1, a.address2 " +
+      "FROM orders o " +
+      "LEFT JOIN payment p ON p.paymentId = o.paymentId " +
+      "LEFT JOIN address a ON a.addressId = o.addressId " +
+      "WHERE o.userId = ? AND o.status <> 'CANCELLED' " +
+      "ORDER BY o.created_at DESC, o.orderId DESC",
       [userId]
     );
     const normalized = (Array.isArray(rows) ? rows : []).map((row) => ({
@@ -1522,6 +1551,42 @@ app.get("/api/users/:userId/orders", async (req, res) => {
     return res.json({ ok: true, orders: normalized });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "order list fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.patch("/api/users/:userId/orders/:orderId/cancel", async (req, res) => {
+  const userId = Number(req.params.userId);
+  const orderId = Number(req.params.orderId);
+  if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(orderId) || orderId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId/orderId" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      "SELECT o.orderId, o.userId, o.status, o.paymentId, p.status AS paymentStatus " +
+      "FROM orders o LEFT JOIN payment p ON p.paymentId = o.paymentId " +
+      "WHERE o.orderId = ? AND o.userId = ? LIMIT 1",
+      [orderId, userId]
+    );
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(404).json({ ok: false, message: "order not found" });
+    }
+
+    const order = rows[0];
+    if (order.status !== "ORDERED") {
+      return res.status(409).json({ ok: false, message: "이미 처리된 주문은 취소할 수 없습니다." });
+    }
+
+    await pool.query("UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE orderId = ?", [orderId]);
+
+    if (Number.isInteger(order.paymentId) && order.paymentId > 0) {
+      await pool.query("UPDATE payment SET status = 'REFUNDED', updated_at = NOW() WHERE paymentId = ?", [order.paymentId]);
+    }
+
+    return res.json({ ok: true, orderId, status: "CANCELLED" });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "order cancel failed", error: String(error?.message ?? error) });
   }
 });
 

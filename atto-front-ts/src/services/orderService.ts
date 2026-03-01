@@ -1,9 +1,9 @@
+import { API_BASE_URL } from '../config/api';
+
 type StoredUser = {
   userId: number;
   name?: string;
 };
-
-const API_BASE = 'http://127.0.0.1:4000';
 
 const getStoredUser = (): StoredUser | null => {
   try {
@@ -24,7 +24,7 @@ const getUserIdOrThrow = (): number => {
 };
 
 const getDefaultAddressId = async (userId: number): Promise<number | null> => {
-  const response = await fetch(`${API_BASE}/api/users/${userId}/addresses`);
+  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/addresses`);
   const result = await response.json();
   if (!response.ok || !result.ok) {
     return null;
@@ -46,7 +46,7 @@ export const createPendingOrder = async (params: { totalAmount: number; memo?: s
   const addressId = await getDefaultAddressId(userId);
   const user = getStoredUser();
 
-  const paymentResponse = await fetch(`${API_BASE}/api/users/${userId}/payments`, {
+  const paymentResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -67,7 +67,7 @@ export const createPendingOrder = async (params: { totalAmount: number; memo?: s
     throw new Error('paymentId 생성 실패');
   }
 
-  const orderResponse = await fetch(`${API_BASE}/api/users/${userId}/orders`, {
+  const orderResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

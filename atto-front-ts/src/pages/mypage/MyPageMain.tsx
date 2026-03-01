@@ -47,7 +47,7 @@ const MyPageMain: React.FC = () => {
       <Layout>
         <Sidebar>
           <MenuLink to="/mypage/edit">회원정보 수정</MenuLink>
-          <MenuLink to="/mypage/scraps">스크랩 (Wishlist)</MenuLink>
+          <MenuLink to="/mypage/scraps">스크랩 (위시리스트)</MenuLink>
           <MenuLink to="/mypage/shipping">배송지 관리</MenuLink>
           <MenuLink to="/mypage/orders">주문/결제 내역</MenuLink>
           <LogoutButton type="button" onClick={handleLogout}>

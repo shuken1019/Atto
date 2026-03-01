@@ -17,6 +17,8 @@ const Signup: React.FC = () => {
     zipcode: '',
     address: '',
     detailAddress: '',
+    thumbnailDataUrl: '',
+    thumbnailName: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,6 +54,8 @@ const Signup: React.FC = () => {
           zipcode: formData.zipcode,
           address1: formData.address,
           address2: formData.detailAddress,
+          thumbnailDataUrl: formData.thumbnailDataUrl,
+          thumbnailName: formData.thumbnailName,
         }),
       });
 
@@ -145,14 +149,13 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Shipping Address</Label>
+            <Label>Shipping Address (optional)</Label>
             <Input
               type="text"
               name="zipcode"
               placeholder="우편번호"
               value={formData.zipcode}
               onChange={handleChange}
-              required
             />
             <Input
               type="text"
@@ -161,7 +164,6 @@ const Signup: React.FC = () => {
               value={formData.address}
               onChange={handleChange}
               style={{ marginTop: '10px' }}
-              required
             />
             <Input
               type="text"
@@ -171,6 +173,7 @@ const Signup: React.FC = () => {
               onChange={handleChange}
               style={{ marginTop: '10px' }}
             />
+            <HelperText>배송지는 선택 입력입니다. 입력하지 않아도 가입됩니다.</HelperText>
           </InputGroup>
 
           <Button type="submit" disabled={loading}>
@@ -287,4 +290,10 @@ const LoginLink = styled.div`
       border-bottom-color: #1a1a1a;
     }
   }
+`;
+
+const HelperText = styled.p`
+  margin-top: 8px;
+  font-size: 12px;
+  color: #888;
 `;

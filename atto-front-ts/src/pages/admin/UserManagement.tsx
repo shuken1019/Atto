@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { API_BASE_URL } from '../../config/api';
 
 type AdminUser = {
   userId: number;
@@ -12,8 +13,6 @@ type AdminUser = {
   updated_at: string;
 };
 
-const API_BASE = 'http://127.0.0.1:4000';
-
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState('');
@@ -23,7 +22,7 @@ const UserManagement: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/users`);
+      const response = await fetch(`${API_BASE_URL}/api/admin/users`);
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '사용자 목록 조회 실패');
@@ -67,7 +66,7 @@ const UserManagement: React.FC = () => {
     const nextRole: AdminUser['role'] = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
     setWorkingUserId(user.userId);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/users/${user.userId}/role`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${user.userId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: nextRole }),

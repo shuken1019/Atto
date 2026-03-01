@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { API_BASE_URL } from '../../config/api';
 
 type DashboardResponse = {
   ok: boolean;
@@ -21,8 +22,6 @@ type DashboardResponse = {
   }>;
 };
 
-const API_BASE = 'http://127.0.0.1:4000';
-
 const statusLabel = (status: string): string => {
   if (status === 'ORDERED') return '주문접수';
   if (status === 'PREPARING') return '배송준비';
@@ -41,7 +40,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/admin/dashboard`);
+        const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`);
         const result = (await response.json()) as DashboardResponse;
         if (!response.ok || !result.ok) {
           alert('대시보드 조회 실패');

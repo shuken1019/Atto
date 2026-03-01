@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { useNavigate } from 'react-router-dom';
 
 type StoredUser = {
   userId: number;
@@ -52,6 +53,7 @@ const formatDate = (iso: string): string => {
 };
 
 const OrderList: React.FC = () => {
+  const navigate = useNavigate();
   const user = useMemo<StoredUser | null>(() => {
     try {
       const raw = localStorage.getItem('attoUser');
@@ -81,7 +83,8 @@ const OrderList: React.FC = () => {
           return;
         }
 
-        setOrders(Array.isArray(result.orders) ? result.orders : []);
+        const list = Array.isArray(result.orders) ? (result.orders as OrderRow[]) : [];
+        setOrders(list.filter((o: OrderRow) => String(o.status).toUpperCase() !== 'CANCELLED'));
       } catch {
         alert('서버 연결에 실패했습니다.');
       } finally {
@@ -98,7 +101,7 @@ const OrderList: React.FC = () => {
 
   return (
     <Container>
-      <Title>Order History</Title>
+      <Title>주문/결제 내역</Title>
 
       {loading ? (
         <EmptyText>불러오는 중...</EmptyText>
@@ -118,7 +121,9 @@ const OrderList: React.FC = () => {
                 <Price>{order.totalAmount.toLocaleString()}원</Price>
               </Info>
             </ProductInfo>
-            <Button type="button">상세보기</Button>
+            <Button type="button" onClick={() => navigate(`/mypage/orders/${order.orderNo ?? order.orderId}`)}>
+              상세보기
+            </Button>
           </OrderItem>
         ))
       )}

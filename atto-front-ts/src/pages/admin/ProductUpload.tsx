@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import type { CategoryType } from '../../types/product';
 import { ProductImageSVG } from '../../components/common/Placeholders';
 import { useParams } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/api';
 
 type AdminColor = {
   colorId: number;
@@ -90,7 +91,7 @@ const ProductUpload = () => {
   useEffect(() => {
     const loadColors = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:4000/api/admin/colors');
+        const response = await fetch(`${API_BASE_URL}/api/admin/colors`);
         const result = await response.json();
         if (!response.ok || !result.ok || !Array.isArray(result.colors)) {
           return;
@@ -124,7 +125,7 @@ const ProductUpload = () => {
     const loadProductForEdit = async () => {
       setLoadingEditData(true);
       try {
-        const response = await fetch(`http://127.0.0.1:4000/api/admin/products/${productId}`);
+        const response = await fetch(`${API_BASE_URL}/api/admin/products/${productId}`);
         const result = await response.json();
         if (!response.ok || !result?.ok || !result?.product) {
           alert(result?.message ?? 'Failed to load product info.');
@@ -379,8 +380,8 @@ const ProductUpload = () => {
     try {
       const thumbnailDataUrl = thumbnailFile ? await fileToDataUrl(thumbnailFile) : '';
       const endpoint = isEditMode
-        ? `http://127.0.0.1:4000/api/admin/products/${productId}`
-        : 'http://127.0.0.1:4000/api/admin/products';
+        ? `${API_BASE_URL}/api/admin/products/${productId}`
+        : `${API_BASE_URL}/api/admin/products`;
 
       const response = await fetch(endpoint, {
         method: isEditMode ? 'PUT' : 'POST',
@@ -916,8 +917,6 @@ const OptionLabel = styled.p`
   margin-bottom: 12px;
   color: #333;
 `;
-
-
 
 
 

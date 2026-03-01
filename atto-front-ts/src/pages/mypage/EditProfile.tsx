@@ -169,45 +169,45 @@ const EditProfile: React.FC = () => {
 
   return (
     <Container>
-      <Title>Edit Profile</Title>
+      <Title>회원정보 수정</Title>
       <Form onSubmit={handleSubmit}>
         <InputGroup>
-          <Label>ID</Label>
+          <Label>아이디</Label>
           <Input name="id" value={formData.id} disabled />
         </InputGroup>
         <InputGroup>
-          <Label>Email</Label>
+          <Label>이메일</Label>
           <Input name="mail" value={formData.mail} disabled />
         </InputGroup>
         <InputGroup>
-          <Label>Name</Label>
+          <Label>이름</Label>
           <Input name="name" value={formData.name} onChange={handleChange} required />
         </InputGroup>
         <InputGroup>
-          <Label>Phone</Label>
+          <Label>전화번호</Label>
           <Input name="phone" value={formData.phone} onChange={handleChange} required />
         </InputGroup>
 
         <InputGroup>
-          <Label>Recipient Name</Label>
+          <Label>수령인 이름</Label>
           <Input name="recipientName" value={formData.recipientName} onChange={handleChange} />
         </InputGroup>
         <InputGroup>
-          <Label>Zipcode</Label>
+          <Label>우편번호</Label>
           <Input name="zipcode" value={formData.zipcode} onChange={handleChange} />
         </InputGroup>
         <InputGroup>
-          <Label>Address</Label>
+          <Label>주소</Label>
           <Input name="address1" value={formData.address1} onChange={handleChange} />
           <Input name="address2" value={formData.address2} onChange={handleChange} style={{ marginTop: '10px' }} />
         </InputGroup>
 
         <InputGroup>
-          <Label>Current Password</Label>
+          <Label>현재 비밀번호</Label>
           <Input type="password" name="currentPassword" value={formData.currentPassword} onChange={handleChange} />
         </InputGroup>
         <InputGroup>
-          <Label>New Password</Label>
+          <Label>새 비밀번호</Label>
           <Input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} />
           <Input
             type="password"
@@ -220,7 +220,7 @@ const EditProfile: React.FC = () => {
         </InputGroup>
 
         <SaveButton type="submit" disabled={saving}>
-          {saving ? 'SAVING...' : 'SAVE CHANGES'}
+          {saving ? '저장 중...' : '저장'}
         </SaveButton>
       </Form>
     </Container>

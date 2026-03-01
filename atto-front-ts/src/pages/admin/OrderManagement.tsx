@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/api';
 
 type AdminOrder = {
   orderId: number;
@@ -19,8 +20,6 @@ type AdminOrder = {
   address1: string | null;
   address2: string | null;
 };
-
-const API_BASE = 'http://127.0.0.1:4000';
 
 const STATUS_LABEL: Record<AdminOrder['status'], string> = {
   ORDERED: '주문접수',
@@ -65,7 +64,7 @@ const OrderManagement: React.FC = () => {
 
   const loadOrders = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/orders`);
+      const response = await fetch(`${API_BASE_URL}/api/admin/orders`);
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '주문 목록 조회 실패');
@@ -119,7 +118,7 @@ const OrderManagement: React.FC = () => {
     if (!status) return;
     setWorkingId(orderId);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -140,7 +139,7 @@ const OrderManagement: React.FC = () => {
   const completePayment = async (orderId: number) => {
     setWorkingId(orderId);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/orders/${orderId}/payment-complete`, { method: 'PATCH' });
+      const response = await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/payment-complete`, { method: 'PATCH' });
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '입금완료 처리 실패');
@@ -573,4 +572,3 @@ const SendButton = styled.button`
   font-size: 13px;
   cursor: pointer;
 `;
-

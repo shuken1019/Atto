@@ -67,7 +67,7 @@ const ShippingList: React.FC = () => {
 
   return (
     <Container>
-      <Title>Shipping Address</Title>
+      <Title>배송지 관리</Title>
 
       {loading ? (
         <EmptyText>불러오는 중...</EmptyText>

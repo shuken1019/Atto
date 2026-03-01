@@ -34,6 +34,7 @@ import OrderCreatedCheck from './pages/admin/OrderCreatedCheck';
 import OrderCreatedDetail from './pages/admin/OrderCreatedDetail';
 import BannerManagement from './pages/admin/BannerManagement';
 import SalesManagement from './pages/admin/SalesManagement';
+import CheckoutPreview from './pages/CheckoutPreview';
 
 const isAdminUser = () => {
   const rawAuth = localStorage.getItem('atto_auth');
@@ -74,6 +75,7 @@ const App: React.FC = () => {
           <Route path="/shop" element={<Shop />} />
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout-preview" element={<CheckoutPreview />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/find-account" element={<FindAccount />} />
