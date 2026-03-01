@@ -1,7 +1,8 @@
-﻿type StoredUser = {
+﻿import { API_BASE_URL } from '../config/api';
+
+type StoredUser = {
   userId: number;
 };
-import { API_BASE_URL } from '../config/api';
 
 type ScrapItem = {
   scrapId: number;

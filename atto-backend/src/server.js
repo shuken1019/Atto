@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
@@ -9,25 +9,29 @@ import crypto from "crypto";
 
 dotenv.config();
 
-const app = express();
+// 1. 앱을 먼저 생성합니다! (이게 위로 와야 에러가 안 납니다)
+const app = express(); 
 const port = Number(process.env.PORT ?? 4000);
+const host = String(process.env.HOST ?? "0.0.0.0");
 
+// 2. DB 연결 정보 (비밀번호 확인 필수!)
 const pool = mysql.createPool({
-  host: process.env.DB_HOST ?? "atto.cn602qo04clr.ap-northeast-2.rds.amazonaws.com",
+  host: process.env.DB_HOST ?? "atto-production-db.cn602qo04clr.ap-northeast-2.rds.amazonaws.com",
   port: Number(process.env.DB_PORT ?? 3306),
   user: process.env.DB_USER ?? "admin",
-  password: process.env.DB_PASSWORD ?? "atto12345",
+  password: process.env.DB_PASSWORD ?? "atto2026!", // 여기에 실제 바꾼 암호를 넣으세요!
   database: process.env.DB_NAME ?? "atto",
   waitForConnections: true,
   connectionLimit: 10,
 });
 
-const allowedOrigins = String(
-  process.env.CORS_ORIGIN ?? "http://3.37.232.202:3001,http://http://3.37.232.202"
-)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// 3. CORS 설정 (배열 형태로 깔끔하게 정리)
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://3.37.232.202'
+].filter(Boolean);
 
 app.use(
   cors({
@@ -36,14 +40,17 @@ app.use(
         callback(null, true);
         return;
       }
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     },
+    credentials: true
   })
 );
+
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+// --- 이 아래부터는 기존의 CATEGORY_ID_FALLBACK 등 로직을 그대로 두시면 됩니다 ---
 const CATEGORY_ID_FALLBACK = {
   outer: 1,
   top: 2,
@@ -1671,6 +1678,17 @@ setInterval(() => {
   });
 }, 5 * 60 * 1000);
 
-app.listen(port, () => {
-  console.log(`Backend running on http://atto.cn602qo04clr.ap-northeast-2.rds.amazonaws.com:${port}`);
+const server = app.listen(port, host, () => {
+  // Note: if `host` is 0.0.0.0, you can still access it via 127.0.0.1 (local)
+  // or the machine's LAN/public IP (external), assuming firewall/security-group allows it.
+  console.log(`Backend listening on http://${host}:${port}`);
+});
+
+server.on("error", (error) => {
+  if (error?.code === "EADDRINUSE") {
+    console.error(
+      `Port ${port} is already in use. Stop the existing process or set PORT to a different value.`
+    );
+    process.exit(1);
+  }
 });

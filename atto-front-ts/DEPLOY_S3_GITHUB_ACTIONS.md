@@ -9,7 +9,7 @@
   - `S3_BUCKET_NAME` = `atto-frontend-bucket`
   - `CLOUDFRONT_DISTRIBUTION_ID` (CloudFront 쓰는 경우만)
 - `Variables` 추가:
-  - `VITE_API_URL` = `http://3.37.232.202:3001`
+  - `VITE_API_URL` = `http://3.37.232.202:4000`
   - `VITE_KAKAO_JS_KEY` (사용 중이면)
 
 ## 2) AWS IAM 권한
