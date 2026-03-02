@@ -157,9 +157,24 @@ const Card = styled.div`
   flex-direction: column;
   gap: 12px;
   cursor: pointer;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+  }
 
   @media (max-width: 640px) {
-    gap: 10px;
+    gap: 8px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+    &:hover {
+      transform: none;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+    }
   }
 `;
 
@@ -167,7 +182,7 @@ const ImageWrapper = styled.div`
   width: 100%;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  background-color: #f0f0f0;
+  background-color: #f7f7f7;
   position: relative;
 
   img,
@@ -188,18 +203,23 @@ const ImageWrapper = styled.div`
 const Info = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  padding: 0 12px 12px;
+
+  @media (max-width: 640px) {
+    padding: 0 12px 14px;
+  }
 `;
 
 const Name = styled.h3`
   font-size: 15px;
-  font-weight: 400;
+  font-weight: 600;
   margin-bottom: 4px;
   font-family: 'Noto Sans KR', sans-serif;
   color: #333;
 
   @media (max-width: 640px) {
-    font-size: 14px;
+    font-size: 15px;
     margin-bottom: 2px;
   }
 `;
@@ -218,9 +238,9 @@ const LikeButton = styled.button<{ $active?: boolean }>`
   background: none;
   border: none;
   cursor: pointer;
-  padding: 6px;
+  padding: 8px;
   color: ${(props) => (props.$active ? '#ef4444' : '#333')};
-  opacity: 0.7;
+  opacity: 0.75;
   display: flex;
   align-items: center;
   justify-content: center;

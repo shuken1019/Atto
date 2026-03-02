@@ -4,14 +4,7 @@ import ProductSection from '../components/product/ProductSection';
 import { getProducts } from '../services/productService';
 import type { IProduct } from '../types/product';
 import { MainBannerSVG } from '../components/common/Placeholders';
-
-const BANNER_STORAGE_KEY = 'atto_banner_settings';
-
-type BannerSettings = {
-  mainText: string;
-  seasonText: string;
-  imageDataUrl: string;
-};
+import { getBanner, type BannerSettings } from '../services/bannerService';
 
 const Home: React.FC = () => {
   const [products, setProducts] = useState<IProduct[]>([]);
@@ -22,33 +15,7 @@ const Home: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const loadBanner = () => {
-      const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-      if (!raw) {
-        setBannerSettings(null);
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(raw) as Partial<BannerSettings>;
-        setBannerSettings({
-          mainText: parsed.mainText ?? 'ESSENTIALS',
-          seasonText: parsed.seasonText ?? '',
-          imageDataUrl: parsed.imageDataUrl ?? '',
-        });
-      } catch {
-        setBannerSettings(null);
-      }
-    };
-
-    loadBanner();
-    window.addEventListener('banner-updated', loadBanner);
-    window.addEventListener('storage', loadBanner);
-
-    return () => {
-      window.removeEventListener('banner-updated', loadBanner);
-      window.removeEventListener('storage', loadBanner);
-    };
+    getBanner().then((banner) => setBannerSettings(banner));
   }, []);
 
   const liveProducts = products.filter((p) => p.isLive);
@@ -56,13 +23,14 @@ const Home: React.FC = () => {
   const newArrivals = products.filter((p) => p.isNew);
   const mainText = bannerSettings?.mainText?.trim() || 'ESSENTIALS';
   const seasonText = bannerSettings?.seasonText?.trim() || '';
-  const hasCustomImage = Boolean(bannerSettings?.imageDataUrl);
+  const imageUrl = bannerSettings?.imageUrl?.trim() || '';
+  const hasCustomImage = Boolean(imageUrl);
 
   return (
     <HomePageContainer>
       <MainBanner>
         {hasCustomImage ? (
-          <img src={bannerSettings?.imageDataUrl} alt="main banner" />
+          <img src={imageUrl} alt="main banner" />
         ) : (
           <MainBannerSVG />
         )}

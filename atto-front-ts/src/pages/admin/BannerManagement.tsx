@@ -1,31 +1,27 @@
 ﻿import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-
-const BANNER_STORAGE_KEY = 'atto_banner_settings';
-
-type BannerSettings = {
-  mainText: string;
-  seasonText: string;
-  imageDataUrl: string;
-};
+import { getBanner, saveBanner } from '../../services/bannerService';
 
 const BannerManagement: React.FC = () => {
   const [mainText, setMainText] = useState('ESSENTIALS');
   const [seasonText, setSeasonText] = useState('');
-  const [imageDataUrl, setImageDataUrl] = useState('');
+  const [imagePreview, setImagePreview] = useState('');
+  const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | undefined>(undefined);
+  const [pendingImageName, setPendingImageName] = useState<string | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(BANNER_STORAGE_KEY);
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<BannerSettings>;
-      setMainText(parsed.mainText ?? 'ESSENTIALS');
-      setSeasonText(parsed.seasonText ?? '');
-      setImageDataUrl(parsed.imageDataUrl ?? '');
-    } catch {
-      // ignore invalid storage value
-    }
+    getBanner()
+      .then((banner) => {
+        setMainText(banner.mainText ?? 'ESSENTIALS');
+        setSeasonText(banner.seasonText ?? '');
+        setImagePreview(banner.imageUrl ?? '');
+        setPendingImageDataUrl(undefined);
+        setPendingImageName(undefined);
+      })
+      .catch(() => {
+        // ignore fetch errors, defaults already applied
+      });
   }, []);
 
   const handleChangeImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,21 +30,37 @@ const BannerManagement: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      setImageDataUrl(String(reader.result || ''));
+      const dataUrl = String(reader.result || '');
+      setImagePreview(dataUrl);
+      setPendingImageDataUrl(dataUrl);
+      setPendingImageName(file.name);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
-    const payload: BannerSettings = {
-      mainText: mainText.trim(),
-      seasonText: seasonText.trim(),
-      imageDataUrl,
-    };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const saved = await saveBanner({
+        mainText: mainText.trim(),
+        seasonText: seasonText.trim(),
+        imageDataUrl: pendingImageDataUrl,
+        imageName: pendingImageName,
+        imageUrl: pendingImageDataUrl ? undefined : imagePreview,
+      });
 
-    localStorage.setItem(BANNER_STORAGE_KEY, JSON.stringify(payload));
-    window.dispatchEvent(new Event('banner-updated'));
-    alert('메인 배너 설정이 저장되었습니다.');
+      setMainText(saved.mainText);
+      setSeasonText(saved.seasonText);
+      setImagePreview(saved.imageUrl);
+      setPendingImageDataUrl(undefined);
+      setPendingImageName(undefined);
+      alert('메인 배너 설정이 저장되었습니다.');
+    } catch (error) {
+      alert('배너 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      console.error(error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,12 +80,12 @@ const BannerManagement: React.FC = () => {
         <InputGroup>
           <Label>배너 이미지</Label>
           <HelperText>권장 사이즈: 1600 x 600px (JPG/PNG)</HelperText>
-          <ImagePreviewBox>{imageDataUrl ? <img src={imageDataUrl} alt="배너 미리보기" /> : '현재 배너 이미지 없음'}</ImagePreviewBox>
+          <ImagePreviewBox>{imagePreview ? <img src={imagePreview} alt="배너 미리보기" /> : '현재 배너 이미지 없음'}</ImagePreviewBox>
           <UploadBtn as="label" htmlFor="banner-image-input">이미지 변경</UploadBtn>
           <HiddenInput id="banner-image-input" type="file" accept="image/*" onChange={handleChangeImage} />
         </InputGroup>
 
-        <SaveBtn type="button" onClick={handleSave}>메인 배너 저장</SaveBtn>
+        <SaveBtn type="button" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '메인 배너 저장'}</SaveBtn>
       </EditForm>
     </Container>
   );

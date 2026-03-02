@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 dotenv.config();
 
@@ -94,6 +95,21 @@ const CATEGORY_ID_FALLBACK = {
 const PRODUCT_STATUS = new Set(["ON_SALE", "SOLD_OUT", "HIDDEN"]);
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://3.37.232.202:${port}`;
+const BANNER_JSON_PATH = path.join(UPLOADS_DIR, "banner-settings.json");
+
+const s3 = process.env.S3_BUCKET
+  ? new S3Client({ region: process.env.AWS_REGION || "ap-northeast-2" })
+  : null;
+
+const buildS3BaseUrl = () =>
+  process.env.S3_BASE_URL ||
+  `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION || "ap-northeast-2"}.amazonaws.com`;
+
+const DEFAULT_BANNER = {
+  mainText: "ESSENTIALS",
+  seasonText: "SPRING / SUMMER 2024",
+  imageUrl: "",
+};
 
 const toIntOrNull = (value) => {
   const n = Number(value);
@@ -210,12 +226,63 @@ const saveThumbnailFromDataUrl = async (thumbnailDataUrl, thumbnailName) => {
     .replace(/[^a-zA-Z0-9_-]/g, "")
     .slice(0, 40);
   const fileName = `${Date.now()}-${safeNamePart || "thumb"}-${crypto.randomUUID()}.${extension}`;
-  const filePath = path.join(UPLOADS_DIR, fileName);
+  const key = `uploads/${fileName}`;
 
+  if (s3 && process.env.S3_BUCKET) {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: key,
+        Body: Buffer.from(base64Data, "base64"),
+        ContentType: mimeType,
+        // ACL 생략: Bucket ACL 비활성화(Ownership: Bucket owner enforced) 환경에서 오류 방지
+      })
+    );
+    return `${buildS3BaseUrl()}/${key}`;
+  }
+
+  // fallback: local filesystem
+  const filePath = path.join(UPLOADS_DIR, fileName);
   await fs.mkdir(UPLOADS_DIR, { recursive: true });
   await fs.writeFile(filePath, Buffer.from(base64Data, "base64"));
 
   return `${PUBLIC_BASE_URL}/uploads/${fileName}`;
+};
+
+const readBannerSettings = async () => {
+  try {
+    const raw = await fs.readFile(BANNER_JSON_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_BANNER,
+      ...parsed,
+      mainText: String(parsed?.mainText ?? DEFAULT_BANNER.mainText),
+      seasonText: String(parsed?.seasonText ?? DEFAULT_BANNER.seasonText),
+      imageUrl: String(parsed?.imageUrl ?? DEFAULT_BANNER.imageUrl),
+    };
+  } catch (_error) {
+    return { ...DEFAULT_BANNER };
+  }
+};
+
+const writeBannerSettings = async (settings) => {
+  const payload = {
+    ...DEFAULT_BANNER,
+    ...settings,
+    mainText: String(settings?.mainText ?? DEFAULT_BANNER.mainText),
+    seasonText: String(settings?.seasonText ?? DEFAULT_BANNER.seasonText),
+    imageUrl: String(settings?.imageUrl ?? DEFAULT_BANNER.imageUrl),
+  };
+
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  await fs.writeFile(BANNER_JSON_PATH, JSON.stringify(payload, null, 2));
+  return payload;
+};
+
+const saveBannerImageIfNeeded = async (imageDataUrl, imageName) => {
+  if (!imageDataUrl) return null;
+  const safeName = String(imageName ?? "banner").slice(0, 60);
+  return await saveThumbnailFromDataUrl(imageDataUrl, safeName);
 };
 
 const resolveCategoryId = async (conn, categoryIdOrName) => {
@@ -252,6 +319,36 @@ app.get("/api/health", async (_req, res) => {
     res.json({ ok: true, db: rows[0]?.ok === 1 });
   } catch (error) {
     res.status(500).json({ ok: false, message: "DB connection failed" });
+  }
+});
+
+app.get("/api/banner", async (_req, res) => {
+  try {
+    const banner = await readBannerSettings();
+    return res.json({ ok: true, banner });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "banner fetch failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.post("/api/banner", async (req, res) => {
+  try {
+    const { mainText, seasonText, imageDataUrl, imageName, imageUrl: incomingImageUrl } = req.body ?? {};
+
+    let finalImageUrl = String(incomingImageUrl ?? "").trim();
+    if (imageDataUrl) {
+      finalImageUrl = await saveBannerImageIfNeeded(imageDataUrl, imageName || mainText || "banner");
+    }
+
+    const saved = await writeBannerSettings({
+      mainText,
+      seasonText,
+      imageUrl: finalImageUrl,
+    });
+
+    return res.json({ ok: true, banner: saved });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "banner save failed", error: String(error?.message ?? error) });
   }
 });
 
@@ -541,15 +638,6 @@ app.post("/api/users/:userId/addresses", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
-
     const [userRows] = await conn.query("SELECT userId FROM `user` WHERE userId = ? LIMIT 1", [userId]);
     if (!Array.isArray(userRows) || userRows.length === 0) {
       await conn.rollback();
@@ -600,15 +688,6 @@ app.put("/api/users/:userId/addresses/:addressId", async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
-
     const [existingRows] = await conn.query(
       "SELECT addressId FROM address WHERE userId = ? AND addressId = ? LIMIT 1",
       [userId, addressId]
@@ -654,15 +733,6 @@ app.patch("/api/users/:userId/addresses/:addressId/default", async (req, res) =>
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
-
     const [existingRows] = await conn.query(
       "SELECT addressId FROM address WHERE userId = ? AND addressId = ? LIMIT 1",
       [userId, addressId]
@@ -701,15 +771,6 @@ app.delete("/api/users/:userId/addresses/:addressId", async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
 
     const [rows] = await conn.query(
       "SELECT addressId, isDefault FROM address WHERE userId = ? AND addressId = ? LIMIT 1",

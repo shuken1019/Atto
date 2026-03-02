@@ -9,6 +9,7 @@ const Cart: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutPending, setCheckoutPending] = useState(false);
+  const [userLoggedIn, setUserLoggedIn] = useState(false);
 
   const load = async () => {
     try {
@@ -24,6 +25,8 @@ const Cart: React.FC = () => {
 
   useEffect(() => {
     load();
+    const rawUser = localStorage.getItem('attoUser');
+    setUserLoggedIn(Boolean(rawUser));
   }, []);
 
   const handleQuantity = (cartId: number, type: 'plus' | 'minus') => {
@@ -71,6 +74,11 @@ const Cart: React.FC = () => {
   const handleCheckout = async () => {
     if (checkoutPending) return;
     if (cartItems.length === 0) return;
+    if (!userLoggedIn) {
+      alert('로그인 후 주문이 가능합니다.');
+      navigate('/login');
+      return;
+    }
 
     setCheckoutPending(true);
     try {
@@ -94,7 +102,7 @@ const Cart: React.FC = () => {
   if (loading) {
     return (
       <EmptyContainer>
-        <h2>Loading...</h2>
+        <h2>불러오는 중...</h2>
       </EmptyContainer>
     );
   }
@@ -102,23 +110,23 @@ const Cart: React.FC = () => {
   if (cartItems.length === 0) {
     return (
       <EmptyContainer>
-        <h2>Your cart is empty.</h2>
-        <p>장바구니가 비어있습니다.</p>
-        <ShopLink to="/shop">GO SHOPPING</ShopLink>
+        <h2>장바구니가 비어 있습니다.</h2>
+        <p>상품을 담아주세요.</p>
+        <ShopLink to="/shop">쇼핑하러 가기</ShopLink>
       </EmptyContainer>
     );
   }
 
   return (
     <Container>
-      <Title>SHOPPING CART</Title>
+      <Title>장바구니</Title>
 
       <CartLayout>
         <ItemsSection>
           <TableHeader>
-            <span>Product</span>
-            <span>Quantity</span>
-            <span>Price</span>
+            <span>상품</span>
+            <span>수량</span>
+            <span>금액</span>
           </TableHeader>
 
           {cartItems.map((item) => (
@@ -138,9 +146,9 @@ const Cart: React.FC = () => {
                 <div>
                   <h4>{item.productName}</h4>
                   <p>
-                    Option: {item.colorName ?? `Color-${item.colorId}`} / {item.sizeLabel}
+                    옵션: {item.colorName ?? `컬러-${item.colorId}`} / {item.sizeLabel}
                   </p>
-                  <RemoveBtn onClick={() => handleRemove(item.cartId)}>Remove</RemoveBtn>
+                  <RemoveBtn onClick={() => handleRemove(item.cartId)}>삭제</RemoveBtn>
                 </div>
               </ItemInfo>
 
@@ -157,23 +165,23 @@ const Cart: React.FC = () => {
 
         <SummarySection>
           <SummaryBox>
-            <h3>Order Summary</h3>
+            <h3>주문 요약</h3>
             <SummaryRow>
-              <span>Subtotal</span>
+              <span>상품 합계</span>
               <span>₩{subTotal.toLocaleString()}</span>
             </SummaryRow>
             <SummaryRow>
-              <span>Shipping</span>
-              <span>{shippingFee === 0 ? 'Free' : `₩${shippingFee.toLocaleString()}`}</span>
+              <span>배송비</span>
+              <span>{shippingFee === 0 ? '무료' : `₩${shippingFee.toLocaleString()}`}</span>
             </SummaryRow>
             <Divider />
             <TotalRow>
-              <span>Total</span>
+              <span>총 결제금액</span>
               <span>₩{total.toLocaleString()}</span>
             </TotalRow>
 
             <CheckoutBtn onClick={handleCheckout} disabled={checkoutPending}>
-              {checkoutPending ? 'PROCESSING...' : 'CHECKOUT'}
+              {checkoutPending ? '처리 중...' : '구매하기'}
             </CheckoutBtn>
           </SummaryBox>
         </SummarySection>

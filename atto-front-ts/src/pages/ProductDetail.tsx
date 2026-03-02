@@ -14,6 +14,7 @@ const ProductDetail: React.FC = () => {
   const navigate = useNavigate();
   const [product, setProduct] = useState<IProduct | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // ?듭뀡 ?곹깭 愿由?
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -59,6 +60,11 @@ const ProductDetail: React.FC = () => {
     loadScrapState();
   }, [id]);
 
+  useEffect(() => {
+    const rawUser = localStorage.getItem('attoUser');
+    setIsLoggedIn(Boolean(rawUser));
+  }, []);
+
   const colors = useMemo(() => Array.from(new Set(variants.map((v) => v.color))), [variants]);
   const sizes = useMemo(() => {
     const raw = Array.from(new Set(variants.flatMap((v) => v.sizes)));
@@ -96,6 +102,11 @@ const ProductDetail: React.FC = () => {
   // ?λ컮援щ땲 ?닿린 ?몃뱾??
   const handleAddToCart = () => {
     if (!product) return;
+    if (!isLoggedIn) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
       alert('옵션을 선택해주세요.');
       return;
@@ -128,6 +139,11 @@ const ProductDetail: React.FC = () => {
 
   const handleBuyNowClick = () => {
     if (!product) return;
+    if (!isLoggedIn) {
+      alert('로그인 후 이용해주세요.');
+      navigate('/login');
+      return;
+    }
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
       alert('옵션을 선택해주세요.');
       return;
@@ -217,14 +233,27 @@ const ProductDetail: React.FC = () => {
           <CategoryLabel>{product.category.toUpperCase()}</CategoryLabel>
           <NameRow>
             <ProductName>{product.name}</ProductName>
-            <ShareBtn type="button" onClick={() => setIsShareOpen(true)} aria-label="공유하기">
-              <ShareIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="18" cy="5" r="2.6" />
-                <circle cx="6" cy="12" r="2.6" />
-                <circle cx="18" cy="19" r="2.6" />
-                <path d="M8.2 10.9L15.8 6.1M8.2 13.1l7.6 4.8" />
-              </ShareIcon>
-            </ShareBtn>
+            <IconRow>
+              <ShareBtn type="button" onClick={() => setIsShareOpen(true)} aria-label="공유하기">
+                <ShareIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="18" cy="5" r="2.6" />
+                  <circle cx="6" cy="12" r="2.6" />
+                  <circle cx="18" cy="19" r="2.6" />
+                  <path d="M8.2 10.9L15.8 6.1M8.2 13.1l7.6 4.8" />
+                </ShareIcon>
+              </ShareBtn>
+              <LikeCircle
+                type="button"
+                onClick={handleScrap}
+                aria-label={isScrapped ? '스크랩 해제' : '스크랩'}
+                $active={isScrapped}
+                disabled={scrapPending}
+              >
+                <HeartIconStyled viewBox="0 0 24 24" fill={isScrapped ? '#ef4444' : 'none'} stroke={isScrapped ? '#ef4444' : 'currentColor'} strokeWidth="1.8">
+                  <path d="M12 20.5S4 15.2 4 9.4A4.4 4.4 0 0 1 8.4 5c1.5 0 2.9.7 3.6 1.8A4.4 4.4 0 0 1 15.6 5 4.4 4.4 0 0 1 20 9.4c0 5.8-8 11.1-8 11.1Z" />
+                </HeartIconStyled>
+              </LikeCircle>
+            </IconRow>
           </NameRow>
           <Price>₩{product.price.toLocaleString()}</Price>
 
@@ -277,15 +306,10 @@ const ProductDetail: React.FC = () => {
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn type="button" onClick={handleBuyNowClick} disabled={buyNowPending}>
+            <AddToCartBtn type="button" onClick={handleBuyNowClick} disabled={buyNowPending || !isLoggedIn}>
               {buyNowPending ? '처리 중...' : '바로구매'}
             </AddToCartBtn>
-            <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
-            <ScrapBtn type="button" $active={isScrapped} onClick={handleScrap} disabled={scrapPending}>
-              <HeartIcon viewBox="0 0 24 24" fill={isScrapped ? '#ef4444' : 'none'} stroke={isScrapped ? '#ef4444' : 'currentColor'} strokeWidth="1.9">
-                <path d="M12 20.5S4 15.2 4 9.4A4.4 4.4 0 0 1 8.4 5c1.5 0 2.9.7 3.6 1.8A4.4 4.4 0 0 1 15.6 5 4.4 4.4 0 0 1 20 9.4c0 5.8-8 11.1-8 11.1Z" />
-              </HeartIcon>
-            </ScrapBtn>
+            <BuyNowBtn type="button" onClick={handleAddToCart} disabled={!isLoggedIn}>장바구니</BuyNowBtn>
           </ButtonGroup>
 
           <ExtraInfo>
@@ -296,9 +320,7 @@ const ProductDetail: React.FC = () => {
       </Container>
 
       <DetailSection>
-        <DetailTitle>상세 콘텐츠</DetailTitle>
         <DetailContentFlow>
-          <DetailParagraph>{product.detailDescription}</DetailParagraph>
           {product.detailMedia.map((media, index) => (
             <MediaCard key={`${media.url}-${index}`}>
               {media.type === 'video' ? (
@@ -306,7 +328,7 @@ const ProductDetail: React.FC = () => {
                   <source src={media.url} />
                 </video>
               ) : (
-                <img src={media.url} alt={`${product.name} ?곸꽭 ?대?吏 ${index + 1}`} />
+                <img src={media.url} alt={`${product.name} 상세 이미지 ${index + 1}`} />
               )}
             </MediaCard>
           ))}
@@ -530,19 +552,57 @@ const NameRow = styled.div`
   gap: 12px;
 `;
 
+const IconRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
 const ShareBtn = styled.button`
   width: 42px;
   height: 42px;
-  border: none;
-  background: transparent;
-  color: #666;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #555;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 12px;
+  transition: border-color 0.2s, transform 0.1s;
+
+  &:hover {
+    border-color: #111;
+    transform: translateY(-1px);
+  }
 `;
 
 const ShareIcon = styled.svg`
+  width: 20px;
+  height: 20px;
+`;
+
+const LikeCircle = styled.button<{ $active?: boolean }>`
+  width: 42px;
+  height: 42px;
+  border: 1px solid ${(props) => (props.$active ? '#ef4444' : '#ddd')};
+  background: #fff;
+  color: ${(props) => (props.$active ? '#ef4444' : '#555')};
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: #ef4444;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(239, 68, 68, 0.16);
+  }
+`;
+
+const HeartIconStyled = styled.svg`
   width: 20px;
   height: 20px;
 `;
@@ -691,14 +751,21 @@ const SizeButton = styled.button<{ $selected: boolean }>`
 `;
 
 const ButtonGroup = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 54px;
   gap: 12px;
   margin-bottom: 40px;
 
   @media (max-width: 768px) {
-    flex-direction: column;
-    margin-bottom: 28px;
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 0;
+    background: linear-gradient(to bottom, rgba(246, 244, 239, 0), #f6f4ef 25%);
+    grid-template-columns: 1fr;
     gap: 10px;
+    margin-bottom: 16px;
   }
 `;
 
@@ -709,18 +776,20 @@ const AddToCartBtn = styled.button`
   color: #fff;
   border: none;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   letter-spacing: 1px;
-  transition: background-color 0.2s;
+  border-radius: 12px;
+  transition: background-color 0.2s, transform 0.1s;
 
   &:hover {
     background-color: #000;
+    transform: translateY(-1px);
   }
 
   @media (max-width: 768px) {
-    height: 52px;
-    font-size: 14px;
+    height: 54px;
+    font-size: 15px;
   }
 `;
 
@@ -729,44 +798,27 @@ const BuyNowBtn = styled.button`
   height: 56px;
   background-color: #fff;
   color: #333;
-  border: 1px solid #333;
+  border: 1.5px solid #333;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   letter-spacing: 1px;
-  transition: background-color 0.2s;
+  border-radius: 12px;
+  transition: all 0.2s;
 
   &:hover {
-    background-color: #f5f5f5;
+    background-color: #333;
+    color: #fff;
+    transform: translateY(-1px);
   }
 
   @media (max-width: 768px) {
-    height: 52px;
-    font-size: 14px;
+    height: 54px;
+    font-size: 15px;
   }
 `;
 
-const ScrapBtn = styled.button<{ $active?: boolean }>`
-  width: 82px;
-  height: 56px;
-  border: 1px solid ${(props) => (props.$active ? '#111827' : '#ddd')};
-  background: #fff;
-  color: ${(props) => (props.$active ? '#111827' : '#555')};
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  @media (max-width: 768px) {
-    width: 82px;
-    height: 52px;
-  }
-`;
-
-const HeartIcon = styled.svg`
-  width: 22px;
-  height: 22px;
-`;
+// 좋아요는 상단 아이콘(LikeCircle)으로 이동, 기존 ScrapBtn/HeartIcon 제거
 
 const ShareBackdrop = styled.div`
   position: fixed;
@@ -919,12 +971,6 @@ const CartActionBtn = styled.button`
   &:first-child {
     border-right: 1px solid #e5e7eb;
   }
-`;
-
-const ExtraInfo = styled.div`
-  font-size: 13px;
-  color: #888;
-  line-height: 1.6;
 `;
 
 const LoadingMsg = styled.div`
@@ -1084,6 +1130,12 @@ const BuyActions = styled.div`
   }
 `;
 
+const ExtraInfo = styled.div`
+  font-size: 13px;
+  color: #888;
+  line-height: 1.6;
+`;
+
 const DetailSection = styled.section`
   margin: 0 20px 20px;
   padding: 24px;
@@ -1111,7 +1163,7 @@ const DetailContentFlow = styled.div`
 
 const MediaCard = styled.div`
   width: 100%;
-  background: #f4f4f4;
+  background: #fff;
   overflow: hidden;
 
   img,
@@ -1121,13 +1173,6 @@ const MediaCard = styled.div`
     display: block;
     object-fit: contain;
   }
-`;
-
-const DetailParagraph = styled.p`
-  font-size: 14px;
-  line-height: 1.8;
-  color: #555;
-  white-space: pre-wrap;
 `;
 
 const SizeTable = styled.table`

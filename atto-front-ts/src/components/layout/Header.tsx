@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 
 const CartIcon = () => (
@@ -11,8 +11,10 @@ const CartIcon = () => (
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const syncAuth = () => {
@@ -46,6 +48,11 @@ const Header: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // 라우트 변경 시 모바일 메뉴 닫기
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem('atto_auth');
     localStorage.removeItem('attoUser');
@@ -56,29 +63,55 @@ const Header: React.FC = () => {
   return (
     <HeaderWrapper>
       <Nav>
-        <div className="left-menu">
-          <MenuLink to="/shop">SHOP</MenuLink>
-          <IconButton to="/cart" aria-label="Cart">
-            <CartIcon />
-          </IconButton>
-        </div>
+        <LeftArea>
+          <MobileMenuButton
+            type="button"
+            aria-label="메뉴 열기"
+            onClick={() => setIsMenuOpen((v) => !v)}
+          >
+            <span />
+            <span />
+            <span />
+          </MobileMenuButton>
+        </LeftArea>
 
         <LogoContainer to="/">
           <LogoText>ATTO</LogoText>
         </LogoContainer>
 
-        <div className="right-menu">
+        <RightArea>
+          <MenuLink to="/shop">SHOP</MenuLink>
+          <IconButton to="/cart" aria-label="Cart">
+            <CartIcon />
+          </IconButton>
+          <MenuLink className="desktop-only" to="/mypage">MY PAGE</MenuLink>
+          {isAdmin && <MenuLink className="desktop-only" to="/admin">ADMIN</MenuLink>}
           {isLoggedIn ? (
-            <MenuButton type="button" onClick={handleLogout}>
+            <MenuButton className="desktop-only" type="button" onClick={handleLogout}>
               LOGOUT
             </MenuButton>
           ) : (
-            <MenuLink to="/login">LOGIN</MenuLink>
+            <MenuLink className="desktop-only" to="/login">LOGIN</MenuLink>
           )}
-          <MenuLink to="/mypage">MY PAGE</MenuLink>
-          {isAdmin && <MenuLink to="/admin">ADMIN</MenuLink>}
-        </div>
+        </RightArea>
       </Nav>
+
+      {isMenuOpen && (
+        <>
+          <MobileMenu>
+            <MobileMenuItem to="/shop">SHOP</MobileMenuItem>
+            <MobileMenuItem to="/cart">CART</MobileMenuItem>
+            <MobileMenuItem to="/mypage">MY PAGE</MobileMenuItem>
+            {isAdmin && <MobileMenuItem to="/admin">ADMIN</MobileMenuItem>}
+            {isLoggedIn ? (
+              <MobileMenuButtonText type="button" onClick={handleLogout}>LOGOUT</MobileMenuButtonText>
+            ) : (
+              <MobileMenuItem to="/login">LOGIN</MobileMenuItem>
+            )}
+          </MobileMenu>
+          <MobileBackdrop onClick={() => setIsMenuOpen(false)} />
+        </>
+      )}
     </HeaderWrapper>
   );
 };
@@ -109,33 +142,25 @@ const Nav = styled.nav`
   max-width: 1400px;
   margin: 0 auto;
 
-  .left-menu,
-  .right-menu {
-    display: flex;
-    align-items: center;
-    gap: 30px;
-    flex: 1;
-  }
-
-  .right-menu {
-    justify-content: flex-end;
-  }
-
-  @media (max-width: 900px) {
-    .left-menu,
-    .right-menu {
-      gap: 16px;
-    }
-  }
-
   @media (max-width: 640px) {
-    flex-wrap: wrap;
-    row-gap: 12px;
+    gap: 8px;
+  }
+`;
 
-    .left-menu,
-    .right-menu {
-      flex: 1 1 50%;
-      gap: 12px;
+const LeftArea = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+`;
+
+const RightArea = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  .desktop-only {
+    @media (max-width: 740px) {
+      display: none;
     }
   }
 `;
@@ -186,9 +211,10 @@ const IconButton = styled(Link)`
   justify-content: center;
   color: #1a1a1a;
   transition: transform 0.2s, opacity 0.2s;
+  padding: 6px;
 
   &:hover {
-    opacity: 0.6;
+    opacity: 0.7;
     transform: translateY(-1px);
   }
 `;
@@ -197,8 +223,6 @@ const LogoContainer = styled(Link)`
   text-align: center;
 
   @media (max-width: 640px) {
-    order: -1;
-    flex: 1 1 100%;
     display: flex;
     justify-content: center;
   }
@@ -224,5 +248,74 @@ const LogoText = styled.h1`
     font-size: 18px;
     padding: 6px 18px;
   }
+
+  @media (max-width: 740px) {
+    font-size: 17px;
+    padding: 6px 16px;
+  }
 `;
 
+const MobileMenuButton = styled.button`
+  display: none;
+  width: 38px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+  cursor: pointer;
+
+  span {
+    width: 22px;
+    height: 2px;
+    background: #1a1a1a;
+    border-radius: 1px;
+  }
+
+  @media (max-width: 740px) {
+    display: inline-flex;
+  }
+`;
+
+const MobileMenu = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 72vw;
+  max-width: 320px;
+  height: 100vh;
+  background: #f6f4ef;
+  box-shadow: 8px 0 26px rgba(0, 0, 0, 0.16);
+  padding: 70px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 200;
+`;
+
+const MobileMenuItem = styled(Link)`
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 10px 0;
+`;
+
+const MobileMenuButtonText = styled.button`
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  text-align: left;
+`;
+
+const MobileBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 190;
+`;
