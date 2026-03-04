@@ -3,6 +3,35 @@
 import React from 'react';
 import styled from 'styled-components';
 
+const SOCIAL_LINKS = {
+  instagram: 'https://instagram.com',
+  kakaoOpenChat: 'https://open.kakao.com',
+  naver: 'https://www.naver.com',
+};
+
+const InstagramIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="16" rx="5" stroke="currentColor" strokeWidth="1.8" />
+    <circle cx="12" cy="12" r="3.8" stroke="currentColor" strokeWidth="1.8" />
+    <circle cx="17.2" cy="6.8" r="1" fill="currentColor" />
+  </svg>
+);
+
+const KakaoIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M12 3C6.9 3 3 6.2 3 10.2c0 2.5 1.5 4.7 3.8 6L6 21l4.2-2.3c.6.1 1.2.2 1.8.2 5.1 0 9-3.2 9-7.2S17.1 3 12 3Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const NaverIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M5 5h4.2l5.6 8.4V5H19v14h-4.2l-5.6-8.4V19H5V5Z" fill="currentColor" />
+  </svg>
+);
+
 const Footer: React.FC = () => {
   return (
     <FooterContainer>
@@ -20,14 +49,33 @@ const Footer: React.FC = () => {
         </FooterSection>
         <FooterSection>
           <h4>Follow Us</h4>
-          <ul>
-            <li><a href="https://instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a></li>
-          </ul>
+          <FollowIconRow>
+            <IconLink href={SOCIAL_LINKS.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+              <InstagramIcon />
+            </IconLink>
+            <IconLink href={SOCIAL_LINKS.kakaoOpenChat} target="_blank" rel="noopener noreferrer" aria-label="Kakao Open Chat">
+              <KakaoIcon />
+            </IconLink>
+            <IconLink href={SOCIAL_LINKS.naver} target="_blank" rel="noopener noreferrer" aria-label="Naver">
+              <NaverIcon />
+            </IconLink>
+          </FollowIconRow>
         </FooterSection>
       </FooterInner>
       <Copyright>
         © {new Date().getFullYear()} ATTO. All rights reserved.
       </Copyright>
+      <DesktopFloatingLinks>
+        <IconLink href={SOCIAL_LINKS.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+          <InstagramIcon />
+        </IconLink>
+        <IconLink href={SOCIAL_LINKS.kakaoOpenChat} target="_blank" rel="noopener noreferrer" aria-label="Kakao Open Chat">
+          <KakaoIcon />
+        </IconLink>
+        <IconLink href={SOCIAL_LINKS.naver} target="_blank" rel="noopener noreferrer" aria-label="Naver">
+          <NaverIcon />
+        </IconLink>
+      </DesktopFloatingLinks>
     </FooterContainer>
   );
 };
@@ -104,4 +152,45 @@ const Copyright = styled.div`
   font-size: 12px;
   padding-top: 20px;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
+`;
+
+const FollowIconRow = styled.div`
+  display: none;
+  align-items: center;
+  gap: 10px;
+
+  @media (max-width: 640px) {
+    display: inline-flex;
+  }
+`;
+
+const IconLink = styled.a`
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 26, 26, 0.22);
+  color: #1a1a1a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, opacity 0.2s;
+
+  &:hover {
+    transform: translateY(-1px);
+    opacity: 0.8;
+  }
+`;
+
+const DesktopFloatingLinks = styled.div`
+  position: fixed;
+  right: 18px;
+  bottom: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 280;
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;

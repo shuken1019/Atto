@@ -1,6 +1,7 @@
-﻿import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo } from 'react';
 import styled from 'styled-components';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { showConfirm } from '../../components/common/appDialog';
 
 type StoredUser = {
   userId: number;
@@ -11,7 +12,6 @@ type StoredUser = {
 
 const MyPageMain: React.FC = () => {
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const user = useMemo<StoredUser | null>(() => {
     try {
@@ -28,43 +28,32 @@ const MyPageMain: React.FC = () => {
     localStorage.removeItem('atto_auth');
     window.dispatchEvent(new Event('auth-changed'));
     navigate('/login');
-    setMenuOpen(false);
   };
 
   const handleWithdraw = () => {
-    const confirmed = window.confirm('정말 회원탈퇴 하시겠습니까?');
-    if (!confirmed) return;
-    alert('회원탈퇴 요청이 접수되었습니다.');
-    setMenuOpen(false);
+    const run = async () => {
+      const confirmed = await showConfirm('정말 회원탈퇴 하시겠습니까?');
+      if (!confirmed) return;
+      alert('회원탈퇴 요청이 접수되었습니다.');
+    };
+    void run();
   };
 
   return (
     <Container>
       <HeaderArea>
-        <h1>MY Page</h1>
+        <h1>마이페이지</h1>
         <p>
           안녕하세요 <strong>{user?.name ?? '고객'}</strong>님
         </p>
       </HeaderArea>
 
-      <MobileMenuToggle type="button" onClick={() => setMenuOpen((v) => !v)}>
-        <span />
-        <span />
-        <span />
-        <strong>MY MENU</strong>
-      </MobileMenuToggle>
-
-      {menuOpen && (
-        <>
-          <MobileMenu>
-            <MobileMenuLink to="/mypage/edit" onClick={() => setMenuOpen(false)}>회원정보 수정</MobileMenuLink>
-            <MobileMenuLink to="/mypage/scraps" onClick={() => setMenuOpen(false)}>스크랩</MobileMenuLink>
-            <MobileMenuLink to="/mypage/shipping" onClick={() => setMenuOpen(false)}>배송지 관리</MobileMenuLink>
-            <MobileMenuLink to="/mypage/orders" onClick={() => setMenuOpen(false)}>주문/결제 내역</MobileMenuLink>
-          </MobileMenu>
-          <MobileBackdrop onClick={() => setMenuOpen(false)} />
-        </>
-      )}
+      <MobileQuickMenu>
+        <MobileQuickLink to="/mypage/edit">회원정보 수정</MobileQuickLink>
+        <MobileQuickLink to="/mypage/scraps">스크랩</MobileQuickLink>
+        <MobileQuickLink to="/mypage/shipping">배송지 관리</MobileQuickLink>
+        <MobileQuickLink to="/mypage/orders">주문/결제 내역</MobileQuickLink>
+      </MobileQuickMenu>
 
       <Layout>
         <Sidebar>
@@ -116,6 +105,10 @@ const HeaderArea = styled.div`
   strong {
     color: #1a1a1a;
   }
+
+  @media (max-width: 768px) {
+    margin-bottom: 20px;
+  }
 `;
 
 const Layout = styled.div`
@@ -137,6 +130,37 @@ const Sidebar = styled.nav`
 
   @media (max-width: 768px) {
     display: none;
+  }
+`;
+
+const MobileQuickMenu = styled.nav`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 10px;
+    max-width: 460px;
+    margin: 0 auto 24px;
+  }
+`;
+
+const MobileQuickLink = styled(NavLink)`
+  text-decoration: none;
+  color: #555;
+  background: #fff;
+  border: 1px solid #e7e4db;
+  border-radius: 12px;
+  padding: 12px 10px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+
+  &.active {
+    color: #111;
+    border-color: #d8d0c2;
+    background: #f1ece3;
   }
 `;
 
@@ -199,67 +223,4 @@ const FooterActions = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-`;
-
-const MobileMenuToggle = styled.button`
-  display: none;
-  width: 100%;
-  margin: 0 auto 10px;
-  background: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: center;
-  font-weight: 700;
-  color: #1a1a1a;
-  cursor: pointer;
-
-  span {
-    width: 18px;
-    height: 2px;
-    background: #1a1a1a;
-    border-radius: 1px;
-  }
-
-  @media (max-width: 768px) {
-    display: flex;
-  }
-`;
-
-const MobileMenu = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 74vw;
-  max-width: 320px;
-  height: 100vh;
-  background: #fff;
-  box-shadow: 8px 0 26px rgba(0, 0, 0, 0.12);
-  padding: 70px 22px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 120;
-`;
-
-const MobileMenuLink = styled(NavLink)`
-  font-size: 14px;
-  color: #1a1a1a;
-  font-weight: 600;
-  padding: 10px 0;
-  text-decoration: none;
-
-  &.active {
-    color: #111;
-  }
-`;
-
-const MobileBackdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 110;
 `;

@@ -3,10 +3,12 @@ import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCartItems, removeCartItem, updateCartItemQuantity, type CartItem } from '../services/cartService';
 import { createPendingOrder } from '../services/orderService';
+import { showConfirm } from '../components/common/appDialog';
 
 const Cart: React.FC = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [selectedCartIds, setSelectedCartIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutPending, setCheckoutPending] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
@@ -15,6 +17,7 @@ const Cart: React.FC = () => {
     try {
       const items = await getCartItems();
       setCartItems(items);
+      setSelectedCartIds(items.map((item) => item.cartId));
     } catch (error) {
       const message = error instanceof Error ? error.message : '장바구니 조회 실패';
       alert(message);
@@ -54,6 +57,7 @@ const Cart: React.FC = () => {
   const handleRemove = (cartId: number) => {
     const previous = cartItems;
     setCartItems((prev) => prev.filter((item) => item.cartId !== cartId));
+    setSelectedCartIds((prev) => prev.filter((id) => id !== cartId));
 
     const run = async () => {
       try {
@@ -67,16 +71,25 @@ const Cart: React.FC = () => {
     run();
   };
 
-  const subTotal = cartItems.reduce((acc, cur) => acc + cur.productPrice * cur.quantity, 0);
+  const toggleSelectItem = (cartId: number) => {
+    setSelectedCartIds((prev) =>
+      prev.includes(cartId) ? prev.filter((id) => id !== cartId) : [...prev, cartId],
+    );
+  };
+
+  const selectedItems = cartItems.filter((item) => selectedCartIds.includes(item.cartId));
+  const subTotal = selectedItems.reduce((acc, cur) => acc + cur.productPrice * cur.quantity, 0);
   const shippingFee = subTotal > 100000 ? 0 : 3000;
   const total = subTotal + shippingFee;
 
   const handleCheckout = async () => {
     if (checkoutPending) return;
-    if (cartItems.length === 0) return;
+    if (selectedItems.length === 0) return;
     if (!userLoggedIn) {
-      alert('로그인 후 주문이 가능합니다.');
-      navigate('/login');
+      const confirmed = await showConfirm('로그인이 필요합니다.');
+      if (confirmed) {
+        navigate('/login');
+      }
       return;
     }
 
@@ -84,11 +97,12 @@ const Cart: React.FC = () => {
     try {
       const { orderNo } = await createPendingOrder({
         totalAmount: total,
-        memo: `[장바구니 주문] items=${cartItems.length}`,
+        memo: `[장바구니 주문] items=${selectedItems.length}`,
       });
 
-      await Promise.allSettled(cartItems.map((item) => removeCartItem(item.cartId)));
-      setCartItems([]);
+      await Promise.allSettled(selectedItems.map((item) => removeCartItem(item.cartId)));
+      setCartItems((prev) => prev.filter((item) => !selectedCartIds.includes(item.cartId)));
+      setSelectedCartIds([]);
       alert(`주문이 생성되었습니다. (주문번호: ${orderNo})`);
       navigate('/mypage/orders');
     } catch (error) {
@@ -124,6 +138,7 @@ const Cart: React.FC = () => {
       <CartLayout>
         <ItemsSection>
           <TableHeader>
+            <span />
             <span>상품</span>
             <span>수량</span>
             <span>금액</span>
@@ -131,6 +146,14 @@ const Cart: React.FC = () => {
 
           {cartItems.map((item) => (
             <CartItemRow key={item.cartId}>
+              <SelectCell>
+                <SelectButton
+                  type="button"
+                  aria-label={selectedCartIds.includes(item.cartId) ? '선택 해제' : '선택'}
+                  $checked={selectedCartIds.includes(item.cartId)}
+                  onClick={() => toggleSelectItem(item.cartId)}
+                />
+              </SelectCell>
               <ItemInfo>
                 <img
                   src={
@@ -180,7 +203,7 @@ const Cart: React.FC = () => {
               <span>₩{total.toLocaleString()}</span>
             </TotalRow>
 
-            <CheckoutBtn onClick={handleCheckout} disabled={checkoutPending}>
+            <CheckoutBtn onClick={handleCheckout} disabled={checkoutPending || selectedItems.length === 0}>
               {checkoutPending ? '처리 중...' : '구매하기'}
             </CheckoutBtn>
           </SummaryBox>
@@ -221,7 +244,7 @@ const ItemsSection = styled.div`
 
 const TableHeader = styled.div`
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr;
+  grid-template-columns: 56px minmax(360px, 1.8fr) minmax(140px, 0.7fr) minmax(140px, 0.8fr);
   align-items: center;
   border-bottom: 1px solid #1a1a1a;
   padding-bottom: 15px;
@@ -230,11 +253,11 @@ const TableHeader = styled.div`
   text-transform: uppercase;
   color: #666;
 
-  span:nth-child(2) {
+  span:nth-child(3) {
     text-align: center;
   }
-  span:nth-child(3) {
-    text-align: right;
+  span:nth-child(4) {
+    text-align: center;
   }
 
   @media (max-width: 600px) {
@@ -244,20 +267,25 @@ const TableHeader = styled.div`
 
 const CartItemRow = styled.div`
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr;
+  grid-template-columns: 56px minmax(360px, 1.8fr) minmax(140px, 0.7fr) minmax(140px, 0.8fr);
   align-items: center;
   padding: 24px 0;
   border-bottom: 1px solid #eee;
 
   @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-    gap: 20px;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'info info'
+      'qty price';
+    gap: 12px 10px;
   }
 `;
 
 const ItemInfo = styled.div`
   display: flex;
+  align-items: center;
   gap: 20px;
+  min-width: 0;
 
   img {
     width: 90px;
@@ -277,10 +305,44 @@ const ItemInfo = styled.div`
     font-size: 15px;
     font-weight: 500;
     color: #1a1a1a;
+    word-break: keep-all;
   }
   p {
     font-size: 13px;
     color: #666;
+  }
+
+  @media (max-width: 600px) {
+    grid-area: info;
+  }
+`;
+
+const SelectCell = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const SelectButton = styled.button<{ $checked: boolean }>`
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid ${(props) => (props.$checked ? '#1a1a1a' : '#cfcfcf')};
+  background: ${(props) => (props.$checked ? '#1a1a1a' : '#fff')};
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  &::after {
+    content: '';
+    display: ${(props) => (props.$checked ? 'block' : 'none')};
+    position: absolute;
+    left: 5px;
+    top: 1.5px;
+    width: 6px;
+    height: 11px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
   }
 `;
 
@@ -321,15 +383,22 @@ const QuantityControl = styled.div`
     min-width: 20px;
     text-align: center;
   }
+
+  @media (max-width: 600px) {
+    grid-area: qty;
+    justify-content: flex-start;
+  }
 `;
 
 const ItemPrice = styled.div`
-  text-align: right;
+  text-align: center;
   font-size: 15px;
   font-weight: 600;
 
   @media (max-width: 600px) {
-    text-align: left;
+    grid-area: price;
+    text-align: center;
+    align-self: center;
   }
 `;
 

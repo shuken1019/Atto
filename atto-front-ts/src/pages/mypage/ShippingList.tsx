@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { showConfirm } from '../../components/common/appDialog';
 
 type StoredUser = {
   userId: number;
@@ -165,7 +166,7 @@ const ShippingList: React.FC = () => {
 
   const handleDelete = async (addressId: number) => {
     if (!user?.userId) return;
-    const confirmed = window.confirm('이 배송지를 삭제할까요?');
+    const confirmed = await showConfirm('이 배송지를 삭제할까요?');
     if (!confirmed) return;
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/addresses/${addressId}`, {

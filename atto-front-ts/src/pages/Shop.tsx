@@ -15,6 +15,7 @@ const Shop: React.FC = () => {
   // 상태 관리
   const [selectedCategory, setSelectedCategory] = useState<FilterType>('all');
   const [sortOption, setSortOption] = useState<SortType>('newest');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 1. 데이터 불러오기
   useEffect(() => {
@@ -24,7 +25,7 @@ const Shop: React.FC = () => {
   }, []);
 
   // ⭐️ 2. 필터링 및 정렬 로직 (useEffect 대신 useMemo 사용!)
-  // products, selectedCategory, sortOption이 바뀔 때만 다시 계산합니다.
+  // products, selectedCategory, sortOption, searchQuery가 바뀔 때만 다시 계산합니다.
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -33,7 +34,13 @@ const Shop: React.FC = () => {
       result = result.filter((p) => p.category === selectedCategory);
     }
 
-    // (2) 정렬
+    // (2) 검색어 필터
+    const keyword = searchQuery.trim().toLowerCase();
+    if (keyword) {
+      result = result.filter((p) => p.name.toLowerCase().includes(keyword));
+    }
+
+    // (3) 정렬
     if (sortOption === 'newest') {
       result.sort((a, b) => b.id - a.id);
     } else if (sortOption === 'popular') {
@@ -42,7 +49,7 @@ const Shop: React.FC = () => {
     }
 
     return result;
-  }, [products, selectedCategory, sortOption]);
+  }, [products, selectedCategory, sortOption, searchQuery]);
 
   // 카테고리 목록
   const categories: { id: FilterType; label: string }[] = [
@@ -58,7 +65,16 @@ const Shop: React.FC = () => {
       <ShopLayout>
         {/* 왼쪽 사이드바: 카테고리 */}
         <Sidebar>
-          <h3>Categories</h3>
+          <SidebarHeader>
+            <h3>Categories</h3>
+            <MobileSearchInput
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="상품 검색"
+              aria-label="상품 검색"
+            />
+          </SidebarHeader>
           <ul>
             {categories.map((cat) => (
               <li key={cat.id}>
@@ -76,8 +92,14 @@ const Shop: React.FC = () => {
         {/* 오른쪽 컨텐츠: 정렬 + 상품 목록 */}
         <ContentArea>
           <SortBar>
-            <span>Total {filteredProducts.length} items</span>
             <SortButtons>
+              <DesktopSearchInput
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="상품 검색"
+                aria-label="상품 검색"
+              />
               <SortButton 
                 $active={sortOption === 'newest'} 
                 onClick={() => setSortOption('newest')}
@@ -116,7 +138,11 @@ export default Shop;
 const ShopContainer = styled.div`
   max-width: 1400px;
   margin: 0 auto;
-  padding: 40px 20px 100px;
+  padding: 40px 40px 100px;
+
+  @media (max-width: 900px) {
+    padding: 32px 20px 90px;
+  }
 
   @media (max-width: 640px) {
     padding: 26px 14px 70px;
@@ -138,9 +164,11 @@ const Sidebar = styled.aside`
   flex-shrink: 0;
 
   h3 {
+    display: flex;
+    align-items: flex-end;
+    height: 44px;
     font-size: 18px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid #ddd;
+    margin: 0 0 24px;
     padding-bottom: 12px;
   }
 
@@ -157,47 +185,66 @@ const Sidebar = styled.aside`
     width: 100%;
 
     h3 {
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      height: auto;
+      border-bottom: none;
+      margin: 0;
+      padding: 0;
       font-size: 16px;
     }
 
     ul {
+      margin-top: 12px;
       display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
       gap: 8px;
-      overflow-x: auto;
       padding-bottom: 6px;
-      -webkit-overflow-scrolling: touch;
     }
 
     li {
       margin-bottom: 0;
-      flex: 0 0 auto;
     }
   }
 `;
 
-const CategoryButton = styled.button<{ $active: boolean }>`
-  background: none;
-  border: none;
-  font-size: 15px;
-  cursor: pointer;
-  color: ${(props) => (props.$active ? '#000' : '#888')};
-  font-weight: ${(props) => (props.$active ? '600' : '400')};
-  padding: 0;
-  transition: color 0.2s;
-  font-family: 'Noto Sans KR', sans-serif;
+const SidebarHeader = styled.div`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 24px;
 
-  &:hover {
-    color: #333;
+  @media (max-width: 768px) {
+    align-items: center;
+    margin-bottom: 0;
+    padding-bottom: 8px;
+  }
+`;
+
+const MobileSearchInput = styled.input`
+  display: none;
+  width: 180px;
+  max-width: 58%;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #333;
+  background: #fff;
+
+  &:focus {
+    outline: none;
+    border-color: #999;
+  }
+
+  &::placeholder {
+    color: #aaa;
   }
 
   @media (max-width: 768px) {
-    border: 1px solid ${(props) => (props.$active ? '#333' : '#d5d5d5')};
-    border-radius: 999px;
-    padding: 8px 14px;
-    font-size: 13px;
-    white-space: nowrap;
+    display: block;
   }
 `;
 
@@ -207,22 +254,42 @@ const ContentArea = styled.div`
 
 const SortBar = styled.div`
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 10px;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 16px;
+  height: 44px;
+  margin: 0 0 30px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #eee;
-  
-  span {
-    font-size: 14px;
-    color: #666;
-  }
 
   @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
     margin-bottom: 20px;
+  }
+`;
+
+const DesktopSearchInput = styled.input`
+  width: 220px;
+  height: 34px;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+
+  &:focus {
+    outline: none;
+    border-color: #999;
+  }
+
+  &::placeholder {
+    color: #aaa;
+  }
+
+  @media (max-width: 768px) {
+    display: none;
   }
 `;
 
@@ -230,6 +297,11 @@ const SortButtons = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
+
+  @media (max-width: 768px) {
+    justify-content: flex-end;
+    width: 100%;
+  }
 `;
 
 const SortButton = styled.button<{ $active: boolean }>`
@@ -266,8 +338,34 @@ const ProductGrid = styled.div`
 `;
 
 const EmptyState = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 100px 0;
+  min-height: 420px;
   color: #888;
   font-size: 16px;
+`;
+const CategoryButton = styled.button<{ $active: boolean }>`
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  color: ${(props) => (props.$active ? '#000' : '#888')};
+  font-weight: ${(props) => (props.$active ? '600' : '400')};
+  padding: 0;
+  transition: color 0.2s;
+  font-family: 'Noto Sans KR', sans-serif;
+
+  &:hover {
+    color: #333;
+  }
+
+  @media (max-width: 768px) {
+    border: 1px solid ${(props) => (props.$active ? '#333' : '#d5d5d5')};
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
 `;

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import { showConfirm } from '../../components/common/appDialog';
 
 type OrderItem = {
   name: string;
@@ -164,11 +165,14 @@ const OrderDetail: React.FC = () => {
 
   const handleCancel = async () => {
     if (!userId) {
-      alert('로그인이 필요합니다.');
+      const goLogin = await showConfirm('로그인이 필요합니다.', '안내');
+      if (goLogin) {
+        navigate('/login');
+      }
       return;
     }
     if (cancelPending) return;
-    if (!confirm('주문을 취소하시겠습니까?')) return;
+    if (!(await showConfirm('주문을 취소하시겠습니까?'))) return;
     setCancelPending(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}/orders/${order.orderId}/cancel`, {

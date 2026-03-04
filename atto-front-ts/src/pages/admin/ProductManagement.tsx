@@ -2,6 +2,7 @@
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { deleteAdminProduct, getAdminProducts, toggleAdminProductLive, type AdminProductRow } from '../../services/productService';
+import { showConfirm } from '../../components/common/appDialog';
 
 const categoryLabel = (categoryId: number): string => {
   if (categoryId === 1) return 'outer';
@@ -53,7 +54,7 @@ const ProductManagement: React.FC = () => {
 
   const handleDelete = async (product: AdminProductRow) => {
     const productId = Number(product.productId);
-    const ok = window.confirm(`Delete product #${productId} (${product.name})?`);
+    const ok = await showConfirm(`Delete product #${productId} (${product.name})?`);
     if (!ok) return;
 
     try {

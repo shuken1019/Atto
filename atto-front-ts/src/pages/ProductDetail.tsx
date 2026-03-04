@@ -9,6 +9,23 @@ import { addCartItem } from '../services/cartService';
 import type { IProduct } from '../types/product';
 import { ProductImageSVG } from '../components/common/Placeholders';
 
+const KakaoTalkIcon: React.FC = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M12 3C6.9 3 3 6.2 3 10.2c0 2.5 1.5 4.7 3.8 6L6 21l4.2-2.3c.6.1 1.2.2 1.8.2 5.1 0 9-3.2 9-7.2S17.1 3 12 3Z"
+      fill="#191919"
+    />
+  </svg>
+);
+
+const InstagramIcon: React.FC = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="16" rx="5" stroke="#fff" strokeWidth="1.8" />
+    <circle cx="12" cy="12" r="3.8" stroke="#fff" strokeWidth="1.8" />
+    <circle cx="17.2" cy="6.8" r="1" fill="#fff" />
+  </svg>
+);
+
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>(); // URL?먯꽌 id 媛?몄삤湲?
   const navigate = useNavigate();
@@ -23,6 +40,7 @@ const ProductDetail: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isBuyNowModalOpen, setIsBuyNowModalOpen] = useState(false);
+  const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] = useState(false);
   const [buyNowQty, setBuyNowQty] = useState(1);
   const [scrapPending, setScrapPending] = useState(false);
   const [buyNowPending] = useState(false);
@@ -103,8 +121,7 @@ const ProductDetail: React.FC = () => {
   const handleAddToCart = () => {
     if (!product) return;
     if (!isLoggedIn) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
+      setIsLoginRequiredModalOpen(true);
       return;
     }
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
@@ -140,8 +157,7 @@ const ProductDetail: React.FC = () => {
   const handleBuyNowClick = () => {
     if (!product) return;
     if (!isLoggedIn) {
-      alert('로그인 후 이용해주세요.');
-      navigate('/login');
+      setIsLoginRequiredModalOpen(true);
       return;
     }
     if (!selectedColor || (sizes.length > 0 && !selectedSize)) {
@@ -169,27 +185,167 @@ const ProductDetail: React.FC = () => {
     });
   };
 
+  const handleConfirmLoginRedirect = () => {
+    setIsLoginRequiredModalOpen(false);
+    navigate('/login');
+  };
+
   const shareUrl = window.location.href;
 
-  const handleCopyShareUrl = async () => {
+  const copyText = async (text: string): Promise<boolean> => {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // fallback to execCommand
+      }
+    }
+
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      alert('링크가 복사되었습니다.');
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copied;
     } catch {
+      return false;
+    }
+  };
+
+  const handleCopyShareUrl = async () => {
+    const copied = await copyText(shareUrl);
+    if (copied) {
+      alert('링크가 복사되었습니다.');
+    } else {
       alert('복사에 실패했습니다.');
     }
   };
 
-  const openShareWindow = (type: 'line' | 'band' | 'naver' | 'facebook' | 'x') => {
+  const loadKakaoSdk = () =>
+    new Promise<void>((resolve, reject) => {
+      if ((window as any).Kakao) {
+        resolve();
+        return;
+      }
+
+      const existingScript = document.getElementById('kakao-js-sdk') as HTMLScriptElement | null;
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(), { once: true });
+        existingScript.addEventListener('error', () => reject(new Error('kakao sdk load failed')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'kakao-js-sdk';
+      script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('kakao sdk load failed'));
+      document.head.appendChild(script);
+    });
+
+  const openShareWindow = async (type: 'line' | 'kakao' | 'instagram' | 'facebook' | 'x') => {
     const encodedUrl = encodeURIComponent(shareUrl);
     const encodedTitle = encodeURIComponent(product.name);
     const map: Record<typeof type, string> = {
       line: `https://social-plugins.line.me/lineit/share?url=${encodedUrl}`,
-      band: `https://band.us/plugin/share?body=${encodedTitle}%20${encodedUrl}&route=${encodedUrl}`,
-      naver: `https://share.naver.com/web/shareView?url=${encodedUrl}&title=${encodedTitle}`,
+      instagram: 'https://www.instagram.com/',
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
       x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
+      kakao: `https://story.kakao.com/share?url=${encodedUrl}`,
     };
+
+    if (type === 'kakao') {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: product.name,
+            text: product.name,
+            url: shareUrl,
+          });
+          return;
+        } catch {
+          // 사용자가 취소했거나 미지원 동작이면 SDK로 진행
+        }
+      }
+
+      const kakaoKey = import.meta.env.VITE_KAKAO_JS_KEY as string | undefined;
+      if (!kakaoKey) {
+        alert('카카오 공유 키가 없어 시스템 공유창으로 대체합니다.');
+        await copyText(shareUrl);
+        window.open(map.kakao, '_blank', 'width=720,height=760');
+        return;
+      }
+
+      try {
+        await loadKakaoSdk();
+        const kakao = (window as any).Kakao;
+        if (!kakao) throw new Error('kakao unavailable');
+        if (!kakao.isInitialized()) {
+          kakao.init(kakaoKey);
+        }
+        if (typeof kakao.Share?.sendDefault === 'function') {
+          const imageUrl = mainImage && mainImage.startsWith('http')
+            ? mainImage
+            : 'https://picsum.photos/seed/atto-share/600/600';
+
+          kakao.Share.sendDefault({
+            objectType: 'feed',
+            content: {
+              title: product.name,
+              description: product.description || 'ATTO',
+              imageUrl,
+              link: {
+                mobileWebUrl: shareUrl,
+                webUrl: shareUrl,
+              },
+            },
+            buttons: [
+              {
+                title: '상품 보기',
+                link: {
+                  mobileWebUrl: shareUrl,
+                  webUrl: shareUrl,
+                },
+              },
+            ],
+          });
+          return;
+        }
+      } catch {
+        // SDK 공유 실패 시 URL 공유로 폴백
+      }
+
+      window.open(map.kakao, '_blank', 'width=720,height=760');
+      return;
+    }
+
+    if (type === 'instagram') {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: product.name,
+            text: product.name,
+            url: shareUrl,
+          });
+          return;
+        } catch {
+          // 사용자가 취소했거나 미지원 동작이면 폴백
+        }
+      }
+
+      const copied = await copyText(shareUrl);
+      alert(copied ? '링크를 복사했습니다. 인스타그램에 붙여넣어 공유해 주세요.' : '자동 복사에 실패했습니다. 주소창 링크를 복사해 인스타그램에 붙여넣어 주세요.');
+      window.open(map.instagram, '_blank');
+      return;
+    }
 
     window.open(map[type], '_blank', 'width=720,height=760');
   };
@@ -306,10 +462,10 @@ const ProductDetail: React.FC = () => {
           </OptionsWrapper>
 
           <ButtonGroup>
-            <AddToCartBtn type="button" onClick={handleBuyNowClick} disabled={buyNowPending || !isLoggedIn}>
+            <AddToCartBtn type="button" onClick={handleBuyNowClick} disabled={buyNowPending}>
               {buyNowPending ? '처리 중...' : '바로구매'}
             </AddToCartBtn>
-            <BuyNowBtn type="button" onClick={handleAddToCart} disabled={!isLoggedIn}>장바구니</BuyNowBtn>
+            <BuyNowBtn type="button" onClick={handleAddToCart}>장바구니</BuyNowBtn>
           </ButtonGroup>
 
           <ExtraInfo>
@@ -378,23 +534,27 @@ const ProductDetail: React.FC = () => {
             </ShareHead>
 
             <ShareChannels>
-              <ShareChannel type="button" onClick={() => openShareWindow('line')}>
+              <ShareChannel type="button" onClick={() => void openShareWindow('line')}>
                 <CircleIcon $bg="#22c55e">L</CircleIcon>
                 <span>라인</span>
               </ShareChannel>
-              <ShareChannel type="button" onClick={() => openShareWindow('band')}>
-                <CircleIcon $bg="#6b7280">B</CircleIcon>
-                <span>밴드</span>
+              <ShareChannel type="button" onClick={() => void openShareWindow('kakao')}>
+                <CircleIcon $bg="#FEE500" $color="#191919">
+                  <KakaoTalkIcon />
+                </CircleIcon>
+                <span>카카오</span>
               </ShareChannel>
-              <ShareChannel type="button" onClick={() => openShareWindow('naver')}>
-                <CircleIcon $bg="#16a34a">N</CircleIcon>
-                <span>Naver</span>
+              <ShareChannel type="button" onClick={() => void openShareWindow('instagram')}>
+                <CircleIcon $bg="#E1306C">
+                  <InstagramIcon />
+                </CircleIcon>
+                <span>인스타</span>
               </ShareChannel>
-              <ShareChannel type="button" onClick={() => openShareWindow('facebook')}>
+              <ShareChannel type="button" onClick={() => void openShareWindow('facebook')}>
                 <CircleIcon $bg="#3b82f6">f</CircleIcon>
                 <span>페이스북</span>
               </ShareChannel>
-              <ShareChannel type="button" onClick={() => openShareWindow('x')}>
+              <ShareChannel type="button" onClick={() => void openShareWindow('x')}>
                 <CircleIcon $bg="#111827">X</CircleIcon>
                 <span>X</span>
               </ShareChannel>
@@ -469,6 +629,25 @@ const ProductDetail: React.FC = () => {
               </button>
             </BuyActions>
           </BuyModal>
+        </>
+      )}
+
+      {isLoginRequiredModalOpen && (
+        <>
+          <CartBackdrop onClick={() => setIsLoginRequiredModalOpen(false)} />
+          <LoginRequiredModal>
+            <LoginRequiredBody>
+              <LoginRequiredTitle>로그인이 필요합니다</LoginRequiredTitle>
+              <LoginRequiredText>
+                장바구니와 바로구매는 로그인 후 이용할 수 있어요.
+              </LoginRequiredText>
+            </LoginRequiredBody>
+            <LoginRequiredActions>
+              <LoginRequiredButton type="button" onClick={handleConfirmLoginRedirect}>
+                확인
+              </LoginRequiredButton>
+            </LoginRequiredActions>
+          </LoginRequiredModal>
         </>
       )}
     </PageWrapper>
@@ -884,12 +1063,12 @@ const ShareChannel = styled.button`
   }
 `;
 
-const CircleIcon = styled.div<{ $bg: string }>`
+const CircleIcon = styled.div<{ $bg: string; $color?: string }>`
   width: 66px;
   height: 66px;
   border-radius: 50%;
   background: ${(props) => props.$bg};
-  color: #fff;
+  color: ${(props) => props.$color ?? '#fff'};
   font-size: 34px;
   font-weight: 700;
   display: flex;
@@ -970,6 +1149,61 @@ const CartActionBtn = styled.button`
 
   &:first-child {
     border-right: 1px solid #e5e7eb;
+  }
+`;
+
+const LoginRequiredModal = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 420px);
+  background: #f6f4ef;
+  border: 1px solid #e3ded2;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 110;
+`;
+
+const LoginRequiredBody = styled.div`
+  padding: 34px 28px 26px;
+  text-align: center;
+`;
+
+const LoginRequiredTitle = styled.h3`
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: #1a1a1a;
+`;
+
+const LoginRequiredText = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #5f5a52;
+`;
+
+const LoginRequiredActions = styled.div`
+  padding: 0 20px 20px;
+`;
+
+const LoginRequiredButton = styled.button`
+  width: 100%;
+  height: 52px;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.88;
   }
 `;
 

@@ -1,11 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 
 const CartIcon = () => (
   <svg width="20" height="22" viewBox="0 0 20 22" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="1" y="6" width="18" height="15" stroke="#1A1A1A" strokeWidth="1.2" />
     <path d="M6 8V5C6 2.79086 7.79086 1 10 1V1C12.2091 1 14 2.79086 14 5V8" stroke="#1A1A1A" strokeWidth="1.2" />
+  </svg>
+);
+
+const MyPageIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="10" cy="6" r="3.2" stroke="#1A1A1A" strokeWidth="1.2" />
+    <path d="M3.5 17C3.9 13.8 6.5 12 10 12C13.5 12 16.1 13.8 16.5 17" stroke="#1A1A1A" strokeWidth="1.2" />
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 3H4.5C3.7 3 3 3.7 3 4.5V15.5C3 16.3 3.7 17 4.5 17H8" stroke="#1A1A1A" strokeWidth="1.2" />
+    <path d="M11 6L16 10L11 14" stroke="#1A1A1A" strokeWidth="1.2" />
+    <path d="M7 10H16" stroke="#1A1A1A" strokeWidth="1.2" />
+  </svg>
+);
+
+const LoginIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 3H15.5C16.3 3 17 3.7 17 4.5V15.5C17 16.3 16.3 17 15.5 17H12" stroke="#1A1A1A" strokeWidth="1.2" />
+    <path d="M9 6L14 10L9 14" stroke="#1A1A1A" strokeWidth="1.2" />
+    <path d="M3 10H14" stroke="#1A1A1A" strokeWidth="1.2" />
   </svg>
 );
 
@@ -73,6 +96,12 @@ const Header: React.FC = () => {
             <span />
             <span />
           </MobileMenuButton>
+          <LeftDesktopNav>
+            <MenuLink to="/shop">SHOP</MenuLink>
+            <IconButton to="/cart" aria-label="Cart">
+              <CartIcon />
+            </IconButton>
+          </LeftDesktopNav>
         </LeftArea>
 
         <LogoContainer to="/">
@@ -80,18 +109,36 @@ const Header: React.FC = () => {
         </LogoContainer>
 
         <RightArea>
-          <MenuLink to="/shop">SHOP</MenuLink>
-          <IconButton to="/cart" aria-label="Cart">
-            <CartIcon />
-          </IconButton>
-          <MenuLink className="desktop-only" to="/mypage">MY PAGE</MenuLink>
-          {isAdmin && <MenuLink className="desktop-only" to="/admin">ADMIN</MenuLink>}
+          <RightIconLink className="desktop-only" to="/mypage" aria-label="My Page">
+            <MyPageIcon />
+          </RightIconLink>
           {isLoggedIn ? (
-            <MenuButton className="desktop-only" type="button" onClick={handleLogout}>
-              LOGOUT
-            </MenuButton>
+            <>
+              <Divider className="desktop-only" aria-hidden="true" />
+              <RightIconButton className="desktop-only" type="button" onClick={handleLogout} aria-label="Logout">
+                <LogoutIcon />
+              </RightIconButton>
+              {isAdmin && (
+                <>
+                  <Divider className="desktop-only" aria-hidden="true" />
+                  <AdminMenuLink className="desktop-only" to="/admin">ADMIN</AdminMenuLink>
+                </>
+              )}
+            </>
           ) : (
-            <MenuLink className="desktop-only" to="/login">LOGIN</MenuLink>
+            <>
+              <Divider className="desktop-only" aria-hidden="true" />
+              <RightIconLink className="desktop-only" to="/login" aria-label="Login">
+                <LoginIcon />
+              </RightIconLink>
+            </>
+          )}
+          {isLoggedIn ? (
+            <MobileAuthButton type="button" onClick={handleLogout}>
+              LOGOUT
+            </MobileAuthButton>
+          ) : (
+            <MobileAuthLink to="/login">LOGIN</MobileAuthLink>
           )}
         </RightArea>
       </Nav>
@@ -99,15 +146,17 @@ const Header: React.FC = () => {
       {isMenuOpen && (
         <>
           <MobileMenu>
-            <MobileMenuItem to="/shop">SHOP</MobileMenuItem>
-            <MobileMenuItem to="/cart">CART</MobileMenuItem>
-            <MobileMenuItem to="/mypage">MY PAGE</MobileMenuItem>
-            {isAdmin && <MobileMenuItem to="/admin">ADMIN</MobileMenuItem>}
-            {isLoggedIn ? (
-              <MobileMenuButtonText type="button" onClick={handleLogout}>LOGOUT</MobileMenuButtonText>
-            ) : (
+            <MobileMenuNav>
+              <MobileMenuItem to="/shop">SHOP</MobileMenuItem>
+              <MobileMenuItem to="/cart">CART</MobileMenuItem>
+              {isAdmin && <MobileMenuItem to="/admin">ADMIN</MobileMenuItem>}
+              <MobileMenuItem to="/mypage">MY PAGE</MobileMenuItem>
+              
+            </MobileMenuNav>
+
+            <MobileMenuFooter>
               <MobileMenuItem to="/login">LOGIN</MobileMenuItem>
-            )}
+            </MobileMenuFooter>
           </MobileMenu>
           <MobileBackdrop onClick={() => setIsMenuOpen(false)} />
         </>
@@ -141,9 +190,12 @@ const Nav = styled.nav`
   align-items: center;
   max-width: 1400px;
   margin: 0 auto;
+  position: relative;
+  min-height: 56px;
 
   @media (max-width: 640px) {
     gap: 8px;
+    min-height: 44px;
   }
 `;
 
@@ -151,17 +203,94 @@ const LeftArea = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
+  position: relative;
+  z-index: 2;
+`;
+
+const LeftDesktopNav = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  @media (max-width: 740px) {
+    display: none;
+  }
 `;
 
 const RightArea = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
+  position: relative;
+  z-index: 2;
 
   .desktop-only {
     @media (max-width: 740px) {
       display: none;
     }
+  }
+`;
+
+const MobileAuthLink = styled(Link)`
+  display: none;
+  font-size: 12px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: #333;
+
+  @media (max-width: 740px) {
+    display: inline-flex;
+    align-items: center;
+  }
+`;
+
+const MobileAuthButton = styled.button`
+  display: none;
+  font-size: 12px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: #333;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+
+  @media (max-width: 740px) {
+    display: inline-flex;
+    align-items: center;
+  }
+`;
+
+const RightIconLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: #1a1a1a;
+  transition: opacity 0.2s, transform 0.2s;
+
+  &:hover {
+    opacity: 0.7;
+    transform: translateY(-1px);
+  }
+`;
+
+const RightIconButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: #1a1a1a;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+
+  &:hover {
+    opacity: 0.7;
+    transform: translateY(-1px);
   }
 `;
 
@@ -183,25 +312,11 @@ const MenuLink = styled(Link)`
   }
 `;
 
-const MenuButton = styled.button`
-  font-size: 13px;
-  letter-spacing: 1.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  color: #333;
-  transition: opacity 0.2s;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
+const AdminMenuLink = styled(MenuLink)`
+  color: #c53030;
 
   &:hover {
-    opacity: 0.5;
-  }
-
-  @media (max-width: 640px) {
-    font-size: 11px;
-    letter-spacing: 1px;
+    opacity: 0.8;
   }
 `;
 
@@ -219,13 +334,22 @@ const IconButton = styled(Link)`
   }
 `;
 
+const Divider = styled.span`
+  width: 1px;
+  height: 14px;
+  background: rgba(26, 26, 26, 0.25);
+  display: inline-block;
+`;
+
 const LogoContainer = styled(Link)`
   text-align: center;
-
-  @media (max-width: 640px) {
-    display: flex;
-    justify-content: center;
-  }
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  justify-content: center;
+  z-index: 1;
 `;
 
 const LogoText = styled.h1`
@@ -284,33 +408,46 @@ const MobileMenu = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 72vw;
-  max-width: 320px;
+  width: 78vw;
+  max-width: 340px;
   height: 100vh;
   background: #f6f4ef;
   box-shadow: 8px 0 26px rgba(0, 0, 0, 0.16);
-  padding: 70px 22px 24px;
+  padding: 78px 18px 22px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
   z-index: 200;
 `;
 
-const MobileMenuItem = styled(Link)`
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-  padding: 10px 0;
+const MobileMenuNav = styled.nav`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
 `;
 
-const MobileMenuButtonText = styled.button`
-  font-size: 14px;
+const MobileMenuItem = styled(NavLink)`
+  font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
-  padding: 10px 0;
-  background: none;
-  border: none;
-  text-align: left;
+  color: #666;
+  padding: 15px 16px;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+
+  &.active {
+    color: #111;
+    background: #ece7de;
+  }
+
+  &:hover {
+    color: #111;
+  }
+`;
+
+const MobileMenuFooter = styled.div`
+  border-top: 1px solid #e3dfd5;
+  padding: 18px 6px 0;
 `;
 
 const MobileBackdrop = styled.div`
