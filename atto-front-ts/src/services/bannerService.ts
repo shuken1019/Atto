@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config/api';
+import { authFetch } from '../utils/authFetch';
 
 export type BannerSettings = {
   mainText: string;
@@ -40,7 +41,7 @@ type SaveBannerPayload = {
 };
 
 export const saveBanner = async (payload: SaveBannerPayload): Promise<BannerSettings> => {
-  const response = await fetch(`${API_BASE_URL}/api/banner`, {
+  const response = await authFetch(`${API_BASE_URL}/api/banner`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

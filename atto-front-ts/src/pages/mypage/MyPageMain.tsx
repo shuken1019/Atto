@@ -2,6 +2,7 @@
 import styled from 'styled-components';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { showConfirm } from '../../components/common/appDialog';
+import { API_BASE_URL } from '../../config/api';
 
 type StoredUser = {
   userId: number;
@@ -23,7 +24,15 @@ const MyPageMain: React.FC = () => {
     }
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // ignore logout network error, client state still clears
+    }
     localStorage.removeItem('attoUser');
     localStorage.removeItem('atto_auth');
     window.dispatchEvent(new Event('auth-changed'));
@@ -34,7 +43,31 @@ const MyPageMain: React.FC = () => {
     const run = async () => {
       const confirmed = await showConfirm('정말 회원탈퇴 하시겠습니까?');
       if (!confirmed) return;
-      alert('회원탈퇴 요청이 접수되었습니다.');
+      if (!user?.userId) {
+        alert('로그인 정보가 없습니다. 다시 로그인해주세요.');
+        navigate('/login');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok) {
+          alert(result?.message ?? '회원탈퇴에 실패했습니다.');
+          return;
+        }
+
+        localStorage.removeItem('attoUser');
+        localStorage.removeItem('atto_auth');
+        window.dispatchEvent(new Event('auth-changed'));
+        alert('회원탈퇴가 완료되었습니다.');
+        navigate('/');
+      } catch {
+        alert('서버 연결에 실패했습니다.');
+      }
     };
     void run();
   };

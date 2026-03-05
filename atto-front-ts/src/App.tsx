@@ -1,6 +1,6 @@
 // src/App.tsx 전체를 이 코드로 바꾸세요
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { createGlobalStyle } from 'styled-components';
 import Layout from './components/layout/Layout';
 
@@ -50,6 +50,21 @@ const isAdminUser = () => {
   }
 };
 
+const isLoggedInUser = () => {
+  const rawAuth = localStorage.getItem('atto_auth');
+  const rawUser = localStorage.getItem('attoUser');
+
+  try {
+    const parsedAuth = rawAuth ? (JSON.parse(rawAuth) as { userId?: number | string }) : null;
+    const parsedUser = rawUser ? (JSON.parse(rawUser) as { userId?: number | string }) : null;
+    const authUserId = Number(parsedAuth?.userId ?? 0);
+    const userUserId = Number(parsedUser?.userId ?? 0);
+    return Number.isFinite(authUserId) && authUserId > 0 || Number.isFinite(userUserId) && userUserId > 0;
+  } catch {
+    return false;
+  }
+};
+
 const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   if (!isAdminUser()) {
     return <Navigate to="/login" replace />;
@@ -57,18 +72,73 @@ const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) =>
   return children;
 };
 
+const AuthRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  if (!isLoggedInUser()) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
 const GlobalStyle = createGlobalStyle`
+  @font-face {
+    font-family: 'Playfair Display';
+    src: local('Noto Sans KR');
+    unicode-range: U+0030-0039;
+    font-style: normal;
+    font-weight: 300 900;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body, #root { min-height: 100%; }
-  body { background-color: #F6F4EF; color: #1A1A1A; font-family: 'Noto Sans KR', sans-serif; line-height: 1.6; min-width: 320px; overflow-x: hidden; }
+  body { background-color: #F6F4EF; color: #1A1A1A; font-family: 'Playfair Display', 'Noto Sans KR', sans-serif; line-height: 1.6; min-width: 320px; overflow-x: hidden; }
   h1, h2, h3, h4, h5, h6 { font-family: 'Playfair Display', serif; font-weight: 400; }
   a { text-decoration: none; color: inherit; }
 `;
+
+const ShareEntryRedirect: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = String(window.location.hash ?? '');
+    const hashMatch = hash.match(/^#\/product\/(\d+)/);
+    if (hashMatch) {
+      const hashProductId = Number(hashMatch[1]);
+      if (Number.isInteger(hashProductId) && hashProductId > 0) {
+        navigate(`/product/${hashProductId}`, { replace: true });
+        return;
+      }
+    }
+
+    const params = new URLSearchParams(location.search);
+    const productId = Number(params.get('productId') ?? params.get('product') ?? 0);
+
+    if (location.pathname === '/' && Number.isInteger(productId) && productId > 0) {
+      navigate(`/product/${productId}`, { replace: true });
+      return;
+    }
+
+    if (params.has('redirect')) {
+      params.delete('redirect');
+      const nextSearch = params.toString();
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : '',
+        },
+        { replace: true },
+      );
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  return null;
+};
 
 const App: React.FC = () => {
   return (
     <Router>
       <GlobalStyle />
+      <ShareEntryRedirect />
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -80,7 +150,14 @@ const App: React.FC = () => {
           <Route path="/signup" element={<Signup />} />
           <Route path="/find-account" element={<FindAccount />} />
           
-          <Route path="/mypage" element={<MyPageMain />}>
+          <Route
+            path="/mypage"
+            element={
+              <AuthRoute>
+                <MyPageMain />
+              </AuthRoute>
+            }
+          >
             <Route index element={<OrderList />} />
             <Route path="edit" element={<EditProfile />} />
             <Route path="scraps" element={<ScrapList />} />

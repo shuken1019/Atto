@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 import { showConfirm } from '../../components/common/appDialog';
 
 type OrderItem = {
@@ -38,7 +39,7 @@ const fetchOrderDetail = async (orderNo: string): Promise<OrderDetailData | null
     const user = JSON.parse(storedUserRaw) as { userId?: number };
     if (!user?.userId) return null;
 
-    const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/orders`);
+    const response = await authFetch(`${API_BASE_URL}/api/users/${user.userId}/orders`);
     const result = await response.json();
     if (!response.ok || !result.ok || !Array.isArray(result.orders)) return null;
 
@@ -175,7 +176,7 @@ const OrderDetail: React.FC = () => {
     if (!(await showConfirm('주문을 취소하시겠습니까?'))) return;
     setCancelPending(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/orders/${order.orderId}/cancel`, {
+      const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/orders/${order.orderId}/cancel`, {
         method: 'PATCH',
       });
       const result = await response.json();
@@ -298,7 +299,7 @@ export default OrderDetail;
 const Container = styled.div`
   width: 100%;
   max-width: 760px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 `;
 
 const TopRow = styled.div`
@@ -311,7 +312,7 @@ const TopRow = styled.div`
 
 const Title = styled.h2`
   font-size: 24px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
 `;
 
@@ -336,7 +337,7 @@ const ActionButton = styled.button`
 `;
 
 const BackLink = styled(Link)`
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-size: 13px;
   color: #666;
   border-bottom: 1px solid transparent;
@@ -356,7 +357,7 @@ const Section = styled.section`
 
 const SectionTitle = styled.h3`
   font-size: 16px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
   margin-bottom: 14px;
   color: #1a1a1a;
@@ -484,7 +485,7 @@ const TabSection = styled.section`
 
 const TabTitle = styled.h3`
   font-size: 16px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
   margin-bottom: 12px;
   color: #1a1a1a;

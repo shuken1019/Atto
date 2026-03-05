@@ -18,14 +18,6 @@ const KakaoTalkIcon: React.FC = () => (
   </svg>
 );
 
-const InstagramIcon: React.FC = () => (
-  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <rect x="4" y="4" width="16" height="16" rx="5" stroke="#fff" strokeWidth="1.8" />
-    <circle cx="12" cy="12" r="3.8" stroke="#fff" strokeWidth="1.8" />
-    <circle cx="17.2" cy="6.8" r="1" fill="#fff" />
-  </svg>
-);
-
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>(); // URL?먯꽌 id 媛?몄삤湲?
   const navigate = useNavigate();
@@ -190,7 +182,7 @@ const ProductDetail: React.FC = () => {
     navigate('/login');
   };
 
-  const shareUrl = window.location.href;
+  const shareUrl = `${window.location.origin}/#/product/${product.id}`;
 
   const copyText = async (text: string): Promise<boolean> => {
     if (navigator.clipboard?.writeText) {
@@ -251,34 +243,33 @@ const ProductDetail: React.FC = () => {
       document.head.appendChild(script);
     });
 
-  const openShareWindow = async (type: 'line' | 'kakao' | 'instagram' | 'facebook' | 'x') => {
+  const openShareWindow = async (type: 'line' | 'kakao' | 'facebook' | 'x') => {
     const encodedUrl = encodeURIComponent(shareUrl);
     const encodedTitle = encodeURIComponent(product.name);
+    const trySystemShare = async (): Promise<boolean> => {
+      if (!navigator.share) return false;
+      try {
+        await navigator.share({
+          title: product.name,
+          text: product.name,
+          url: shareUrl,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
     const map: Record<typeof type, string> = {
       line: `https://social-plugins.line.me/lineit/share?url=${encodedUrl}`,
-      instagram: 'https://www.instagram.com/',
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
       x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
       kakao: `https://story.kakao.com/share?url=${encodedUrl}`,
     };
 
     if (type === 'kakao') {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: product.name,
-            text: product.name,
-            url: shareUrl,
-          });
-          return;
-        } catch {
-          // 사용자가 취소했거나 미지원 동작이면 SDK로 진행
-        }
-      }
-
       const kakaoKey = import.meta.env.VITE_KAKAO_JS_KEY as string | undefined;
       if (!kakaoKey) {
-        alert('카카오 공유 키가 없어 시스템 공유창으로 대체합니다.');
+        if (await trySystemShare()) return;
         await copyText(shareUrl);
         window.open(map.kakao, '_blank', 'width=720,height=760');
         return;
@@ -323,29 +314,12 @@ const ProductDetail: React.FC = () => {
         // SDK 공유 실패 시 URL 공유로 폴백
       }
 
+      if (await trySystemShare()) return;
       window.open(map.kakao, '_blank', 'width=720,height=760');
       return;
     }
 
-    if (type === 'instagram') {
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: product.name,
-            text: product.name,
-            url: shareUrl,
-          });
-          return;
-        } catch {
-          // 사용자가 취소했거나 미지원 동작이면 폴백
-        }
-      }
-
-      const copied = await copyText(shareUrl);
-      alert(copied ? '링크를 복사했습니다. 인스타그램에 붙여넣어 공유해 주세요.' : '자동 복사에 실패했습니다. 주소창 링크를 복사해 인스타그램에 붙여넣어 주세요.');
-      window.open(map.instagram, '_blank');
-      return;
-    }
+    if (await trySystemShare()) return;
 
     window.open(map[type], '_blank', 'width=720,height=760');
   };
@@ -448,7 +422,7 @@ const ProductDetail: React.FC = () => {
                         $blocked={blocked}
                         disabled={blocked}
                         onClick={() => {
-                          if (!blocked) setSelectedColor(color);
+                          if (!blocked) setSelectedColor((prev) => (prev === color ? null : color));
                         }}
                         title={blocked ? `${color} (선택 불가)` : color}
                       />
@@ -543,12 +517,6 @@ const ProductDetail: React.FC = () => {
                   <KakaoTalkIcon />
                 </CircleIcon>
                 <span>카카오</span>
-              </ShareChannel>
-              <ShareChannel type="button" onClick={() => void openShareWindow('instagram')}>
-                <CircleIcon $bg="#E1306C">
-                  <InstagramIcon />
-                </CircleIcon>
-                <span>인스타</span>
               </ShareChannel>
               <ShareChannel type="button" onClick={() => void openShareWindow('facebook')}>
                 <CircleIcon $bg="#3b82f6">f</CircleIcon>
@@ -791,7 +759,7 @@ const Price = styled.p`
   font-weight: 500;
   color: #333;
   margin-bottom: 30px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 
   @media (max-width: 768px) {
     margin-bottom: 18px;
@@ -857,21 +825,10 @@ const ColorButton = styled.button<{ $colorCode: string; $selected: boolean; $blo
   height: 32px;
   border-radius: 50%;
   background-color: ${props => props.$colorCode};
-  border: 1px solid #ddd;
+  border: 2px solid ${(props) => (props.$selected ? '#111' : '#d5d5d5')};
   cursor: ${props => (props.$blocked ? 'not-allowed' : 'pointer')};
   position: relative;
   overflow: hidden;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 1px solid ${props => props.$selected ? '#333' : 'transparent'};
-  }
 
   &::before {
     content: '';
@@ -1384,7 +1341,7 @@ const DetailSection = styled.section`
 
 const DetailTitle = styled.h3`
   font-size: 18px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
   margin-bottom: 14px;
 `;

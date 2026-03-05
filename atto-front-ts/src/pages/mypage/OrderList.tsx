@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 import { useNavigate } from 'react-router-dom';
 
 type StoredUser = {
@@ -75,7 +76,7 @@ const OrderList: React.FC = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/orders`);
+        const response = await authFetch(`${API_BASE_URL}/api/users/${user.userId}/orders`);
         const result = await response.json();
 
         if (!response.ok || !result.ok) {

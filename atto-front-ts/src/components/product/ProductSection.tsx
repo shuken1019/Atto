@@ -54,7 +54,7 @@ const Title = styled.h2`
   font-size: 28px;
   font-weight: 400;
   color: #1a1a1a;
-  font-family: serif;
+  font-family: 'Playfair Display', serif;
 
   @media (max-width: 640px) {
     font-size: 24px;

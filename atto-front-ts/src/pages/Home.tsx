@@ -78,8 +78,8 @@ const MainBanner = styled.div`
     object-fit: cover;
   }
 
-  @media (max-width: 640px) {
-    margin-bottom: 36px;
+  @media (max-width: 740px) {
+    display: none;
   }
 `;
 

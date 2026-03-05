@@ -215,7 +215,7 @@ const Name = styled.h3`
   font-size: 15px;
   font-weight: 600;
   margin-bottom: 4px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   color: #333;
 
   @media (max-width: 640px) {

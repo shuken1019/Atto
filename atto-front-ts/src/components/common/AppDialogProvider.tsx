@@ -110,7 +110,7 @@ const Title = styled.h3`
   font-weight: 600;
   letter-spacing: -0.3px;
   color: #1a1a1a;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 `;
 
 const Message = styled.p`

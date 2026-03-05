@@ -50,7 +50,7 @@ export default ExchangeRequest;
 const Container = styled.div`
   width: 100%;
   max-width: 760px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 `;
 
 const TopRow = styled.div`
@@ -63,7 +63,7 @@ const TopRow = styled.div`
 
 const Title = styled.h2`
   font-size: 24px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
 `;
 

@@ -76,6 +76,32 @@ const Cart: React.FC = () => {
       prev.includes(cartId) ? prev.filter((id) => id !== cartId) : [...prev, cartId],
     );
   };
+  const allSelected = cartItems.length > 0 && selectedCartIds.length === cartItems.length;
+  const handleToggleSelectAll = () => {
+    setSelectedCartIds(allSelected ? [] : cartItems.map((item) => item.cartId));
+  };
+  const handleRemoveSelected = async () => {
+    if (selectedCartIds.length === 0) return;
+
+    const confirmed = await showConfirm(`선택한 ${selectedCartIds.length}개 상품을 삭제할까요?`);
+    if (!confirmed) return;
+
+    const selectedSet = new Set(selectedCartIds);
+    const previousItems = cartItems;
+    const previousSelected = selectedCartIds;
+
+    setCartItems((prev) => prev.filter((item) => !selectedSet.has(item.cartId)));
+    setSelectedCartIds([]);
+
+    const results = await Promise.allSettled(previousSelected.map((cartId) => removeCartItem(cartId)));
+    const failedCount = results.filter((result) => result.status === 'rejected').length;
+
+    if (failedCount > 0) {
+      setCartItems(previousItems);
+      setSelectedCartIds(previousSelected);
+      alert(`선택삭제 중 ${failedCount}개 항목 삭제에 실패했습니다.`);
+    }
+  };
 
   const selectedItems = cartItems.filter((item) => selectedCartIds.includes(item.cartId));
   const subTotal = selectedItems.reduce((acc, cur) => acc + cur.productPrice * cur.quantity, 0);
@@ -137,6 +163,27 @@ const Cart: React.FC = () => {
 
       <CartLayout>
         <ItemsSection>
+          <SelectionBar>
+            <SelectionLeft>
+              <SelectButton
+                type="button"
+                aria-label={allSelected ? '전체선택 해제' : '전체선택'}
+                $checked={allSelected}
+                onClick={handleToggleSelectAll}
+              />
+              <SelectAllLabel type="button" onClick={handleToggleSelectAll}>
+                전체선택 ({selectedCartIds.length}/{cartItems.length})
+              </SelectAllLabel>
+            </SelectionLeft>
+            <DeleteSelectedButton
+              type="button"
+              onClick={handleRemoveSelected}
+              disabled={selectedCartIds.length === 0}
+            >
+              선택삭제
+            </DeleteSelectedButton>
+          </SelectionBar>
+
           <TableHeader>
             <span />
             <span>상품</span>
@@ -242,6 +289,45 @@ const ItemsSection = styled.div`
   flex: 2;
 `;
 
+const SelectionBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #ececec;
+  border-bottom: 1px solid #ececec;
+  padding: 14px 0;
+  margin-bottom: 16px;
+`;
+
+const SelectionLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const SelectAllLabel = styled.button`
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+`;
+
+const DeleteSelectedButton = styled.button`
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 15px;
+  color: #999;
+  cursor: pointer;
+
+  &:disabled {
+    color: #cfcfcf;
+    cursor: not-allowed;
+  }
+`;
+
 const TableHeader = styled.div`
   display: grid;
   grid-template-columns: 56px minmax(360px, 1.8fr) minmax(140px, 0.7fr) minmax(140px, 0.8fr);
@@ -273,10 +359,10 @@ const CartItemRow = styled.div`
   border-bottom: 1px solid #eee;
 
   @media (max-width: 600px) {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto 1fr auto;
     grid-template-areas:
-      'info info'
-      'qty price';
+      'info info select'
+      'qty qty price';
     gap: 12px 10px;
   }
 `;
@@ -321,14 +407,21 @@ const SelectCell = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+
+  @media (max-width: 600px) {
+    grid-area: select;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding-top: 2px;
+  }
 `;
 
 const SelectButton = styled.button<{ $checked: boolean }>`
-  width: 20px;
-  height: 20px;
-  border: 1.5px solid ${(props) => (props.$checked ? '#1a1a1a' : '#cfcfcf')};
+  width: 24px;
+  height: 24px;
+  border: 2px solid ${(props) => (props.$checked ? '#1a1a1a' : '#bdbdbd')};
   background: ${(props) => (props.$checked ? '#1a1a1a' : '#fff')};
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
@@ -336,10 +429,10 @@ const SelectButton = styled.button<{ $checked: boolean }>`
     content: '';
     display: ${(props) => (props.$checked ? 'block' : 'none')};
     position: absolute;
-    left: 5px;
-    top: 1.5px;
+    left: 7px;
+    top: 2px;
     width: 6px;
-    height: 11px;
+    height: 12px;
     border: solid #fff;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);

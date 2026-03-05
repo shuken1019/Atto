@@ -4,6 +4,7 @@ import type { CategoryType } from '../../types/product';
 import { ProductImageSVG } from '../../components/common/Placeholders';
 import { useParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 
 type AdminColor = {
   colorId: number;
@@ -91,7 +92,7 @@ const ProductUpload = () => {
   useEffect(() => {
     const loadColors = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/colors`);
+        const response = await authFetch(`${API_BASE_URL}/api/admin/colors`);
         const result = await response.json();
         if (!response.ok || !result.ok || !Array.isArray(result.colors)) {
           return;
@@ -125,7 +126,7 @@ const ProductUpload = () => {
     const loadProductForEdit = async () => {
       setLoadingEditData(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/products/${productId}`);
+        const response = await authFetch(`${API_BASE_URL}/api/admin/products/${productId}`);
         const result = await response.json();
         if (!response.ok || !result?.ok || !result?.product) {
           alert(result?.message ?? 'Failed to load product info.');
@@ -383,7 +384,7 @@ const ProductUpload = () => {
         ? `${API_BASE_URL}/api/admin/products/${productId}`
         : `${API_BASE_URL}/api/admin/products`;
 
-      const response = await fetch(endpoint, {
+      const response = await authFetch(endpoint, {
         method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -634,7 +635,7 @@ const Header = styled.div`
 `;
 
 const PageTitle = styled.h2`
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-size: 21px;
   font-weight: 500;
   margin-bottom: 6px;
@@ -643,6 +644,10 @@ const PageTitle = styled.h2`
 const PageDesc = styled.p`
   font-size: 13px;
   color: #6f6f6f;
+
+  @media (max-width: 768px) {
+    text-align: center;
+  }
 `;
 
 const Workspace = styled.div`
@@ -917,6 +922,5 @@ const OptionLabel = styled.p`
   margin-bottom: 12px;
   color: #333;
 `;
-
 
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { createPendingOrder } from '../services/orderService';
 import { API_BASE_URL } from '../config/api';
+import { authFetch } from '../utils/authFetch';
 
 const BANK_NAME = '우리은행';
 const ACCOUNT_NO = '1002-123-456789';
@@ -57,7 +58,7 @@ const CheckoutPreview: React.FC = () => {
           setAddressLoading(false);
           return;
         }
-        const res = await fetch(`${API_BASE_URL}/api/users/${parsed.userId}/addresses`);
+        const res = await authFetch(`${API_BASE_URL}/api/users/${parsed.userId}/addresses`);
         const result = await res.json();
         if (res.ok && result.ok && Array.isArray(result.addresses) && result.addresses.length > 0) {
           const defaultAddr = result.addresses.find((a: any) => a.isDefault) ?? result.addresses[0];

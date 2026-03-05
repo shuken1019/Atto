@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config/api';
+import { authFetch } from '../utils/authFetch';
 
 type StoredUser = {
   userId: number;
@@ -41,7 +42,7 @@ const getUserIdOrThrow = (): number => {
 
 export const getCartItems = async (): Promise<CartItem[]> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/cart`);
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/cart`);
   const result = await response.json();
   if (!response.ok || !result.ok) {
     throw new Error(result.message ?? '장바구니 조회 실패');
@@ -56,7 +57,7 @@ export const addCartItem = async (params: {
   quantity?: number;
 }): Promise<void> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/cart`, {
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/cart`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -74,7 +75,7 @@ export const addCartItem = async (params: {
 
 export const updateCartItemQuantity = async (cartId: number, quantity: number): Promise<void> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/cart/${cartId}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/cart/${cartId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ quantity }),
@@ -87,7 +88,7 @@ export const updateCartItemQuantity = async (cartId: number, quantity: number): 
 
 export const removeCartItem = async (cartId: number): Promise<void> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/cart/${cartId}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/cart/${cartId}`, {
     method: 'DELETE',
   });
   const result = await response.json();

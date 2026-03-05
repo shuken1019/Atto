@@ -32,7 +32,7 @@ const FindAccount: React.FC = () => {
   return (
     <Container>
       <Wrapper>
-        <Title>FIND ACCOUNT</Title>
+        <Title>계정 찾기</Title>
         
         {/* 탭 메뉴 */}
         <TabContainer>
@@ -40,13 +40,13 @@ const FindAccount: React.FC = () => {
             isActive={activeTab === 'id'} 
             onClick={() => setActiveTab('id')}
           >
-            FIND ID
+            아이디 찾기
           </Tab>
           <Tab 
             isActive={activeTab === 'password'} 
             onClick={() => setActiveTab('password')}
           >
-            FIND PASSWORD
+            비밀번호 찾기
           </Tab>
         </TabContainer>
 
@@ -72,7 +72,7 @@ const FindAccount: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <Button type="submit">FIND ID</Button>
+              <Button type="submit">아이디 찾기</Button>
             </form>
           ) : (
             // --- 비밀번호 찾기 폼 ---
@@ -102,13 +102,13 @@ const FindAccount: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <Button type="submit">RESET PASSWORD</Button>
+              <Button type="submit">비밀번호 재설정</Button>
             </form>
           )}
         </ContentBox>
 
         <BackLink>
-          <Link to="/login">Back to Login</Link>
+          <Link to="/login">로그인으로 돌아가기</Link>
         </BackLink>
 
       </Wrapper>

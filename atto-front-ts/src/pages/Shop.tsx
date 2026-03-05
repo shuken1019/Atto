@@ -355,7 +355,7 @@ const CategoryButton = styled.button<{ $active: boolean }>`
   font-weight: ${(props) => (props.$active ? '600' : '400')};
   padding: 0;
   transition: color 0.2s;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 
   &:hover {
     color: #333;

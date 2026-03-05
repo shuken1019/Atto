@@ -2,6 +2,7 @@
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 
 type AdminOrder = {
   orderId: number;
@@ -64,7 +65,7 @@ const OrderManagement: React.FC = () => {
 
   const loadOrders = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/orders`);
+      const response = await authFetch(`${API_BASE_URL}/api/admin/orders`);
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '주문 목록 조회 실패');
@@ -118,7 +119,7 @@ const OrderManagement: React.FC = () => {
     if (!status) return;
     setWorkingId(orderId);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/status`, {
+      const response = await authFetch(`${API_BASE_URL}/api/admin/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -139,7 +140,7 @@ const OrderManagement: React.FC = () => {
   const completePayment = async (orderId: number) => {
     setWorkingId(orderId);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/payment-complete`, { method: 'PATCH' });
+      const response = await authFetch(`${API_BASE_URL}/api/admin/orders/${orderId}/payment-complete`, { method: 'PATCH' });
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '입금완료 처리 실패');
@@ -196,6 +197,9 @@ const OrderManagement: React.FC = () => {
             {item.label} <span>{counts[item.key] ?? 0}</span>
           </TabButton>
         ))}
+        <MobileCreateButton type="button" onClick={() => navigate('/admin/orders/create')}>
+          주문 생성
+        </MobileCreateButton>
       </Tabs>
 
       <SearchRow>
@@ -349,6 +353,10 @@ const CreateButton = styled.button`
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Tabs = styled.div`
@@ -370,6 +378,17 @@ const TabButton = styled.button<{ $active?: boolean }>`
     margin-left: 6px;
     font-size: 12px;
     opacity: 0.85;
+  }
+`;
+
+const MobileCreateButton = styled(CreateButton)`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
   }
 `;
 

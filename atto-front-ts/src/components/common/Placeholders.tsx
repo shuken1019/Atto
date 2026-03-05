@@ -13,7 +13,7 @@ export const MainBannerSVG = () => (
       ESSENTIALS
     </text>
     <text x="50%" y="58%" dominantBaseline="middle" textAnchor="middle" 
-          fontFamily="'Noto Sans KR', sans-serif" fontSize="24" fill="#555" letterSpacing="4">
+          fontFamily="'Playfair Display', 'Noto Sans KR', sans-serif" fontSize="24" fill="#555" letterSpacing="4">
       SPRING / SUMMER 2024
     </text>
     <line x1="700" y1="320" x2="900" y2="320" stroke="#333" strokeWidth="2" />
@@ -43,7 +43,7 @@ export const ProductImageSVG: React.FC<{ type?: string }> = ({ type }) => {
         {text}
       </text>
       <text x="50%" y="70%" dominantBaseline="middle" textAnchor="middle" 
-            fontFamily="'Noto Sans KR', sans-serif" fontSize="12" fill="#888" letterSpacing="1">
+            fontFamily="'Playfair Display', 'Noto Sans KR', sans-serif" fontSize="12" fill="#888" letterSpacing="1">
         ATTO COLLECTION
       </text>
     </SvgWrapper>

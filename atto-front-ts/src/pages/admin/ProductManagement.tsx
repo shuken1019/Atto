@@ -136,6 +136,47 @@ const ProductManagement: React.FC = () => {
           </tbody>
         </ProductTable>
       </TableWrap>
+
+      <MobileList>
+        {loading && <MobileEmpty>Loading...</MobileEmpty>}
+        {!loading && error && <MobileEmpty>{error}</MobileEmpty>}
+
+        {!loading && !error &&
+          products.map((product) => {
+            const isLive = Number(product.isLive ?? 0) === 1;
+            const productId = Number(product.productId);
+            return (
+              <MobileCard key={`mobile-${productId}`}>
+                <MobileCardTop>
+                  <div>
+                    <strong>{product.name}</strong>
+                    <small>ID #{productId}</small>
+                  </div>
+                  <LiveBtn type="button" $active={isLive} disabled={togglingId === productId} onClick={() => handleToggleLive(product)}>
+                    {isLive ? '라이브 해제' : '라이브'}
+                  </LiveBtn>
+                </MobileCardTop>
+
+                <MobileMeta>
+                  <span>카테고리</span><b>{categoryLabel(Number(product.categoryId))}</b>
+                  <span>가격</span><b>₩{Number(product.price ?? 0).toLocaleString()}</b>
+                  <span>재고</span><b>{Number(product.totalStock ?? 0)}</b>
+                </MobileMeta>
+
+                <MobileActions>
+                  <ActionBtn type="button" onClick={() => navigate(`/admin/products/${productId}/edit`)}>
+                    수정
+                  </ActionBtn>
+                  <DeleteBtn type="button" disabled={deletingId === productId} onClick={() => handleDelete(product)}>
+                    삭제
+                  </DeleteBtn>
+                </MobileActions>
+              </MobileCard>
+            );
+          })}
+
+        {!loading && !error && products.length === 0 && <MobileEmpty>등록된 상품이 없습니다.</MobileEmpty>}
+      </MobileList>
     </Container>
   );
 };
@@ -147,6 +188,10 @@ const Container = styled.div`
   padding: 24px;
   background: #f7f5f0;
   min-height: calc(100vh - 80px);
+
+  @media (max-width: 760px) {
+    padding: 12px;
+  }
 `;
 
 const HeaderRow = styled.div`
@@ -158,7 +203,7 @@ const HeaderRow = styled.div`
 
 const Title = styled.h2`
   font-size: 21px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
 `;
 
@@ -167,6 +212,10 @@ const TableWrap = styled.div`
   border: 1px solid #ece7de;
   padding: 4px 0;
   overflow-x: auto;
+
+  @media (max-width: 760px) {
+    display: none;
+  }
 `;
 
 const ProductTable = styled.table`
@@ -218,4 +267,81 @@ const LiveBtn = styled.button<{ $active: boolean }>`
   cursor: pointer;
   height: 34px;
   padding: 0 10px;
+`;
+
+const MobileList = styled.div`
+  display: none;
+
+  @media (max-width: 760px) {
+    display: grid;
+    gap: 10px;
+  }
+`;
+
+const MobileCard = styled.article`
+  background: #fff;
+  border: 1px solid #ece7de;
+  padding: 12px;
+`;
+
+const MobileCardTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+
+  strong {
+    display: block;
+    font-size: 16px;
+    color: #111827;
+  }
+
+  small {
+    display: block;
+    margin-top: 2px;
+    color: #6b7280;
+    font-size: 12px;
+  }
+`;
+
+const MobileMeta = styled.div`
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 6px 8px;
+  padding: 10px;
+  border: 1px solid #ece7de;
+  background: #fcfbf8;
+  margin-bottom: 10px;
+
+  span {
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  b {
+    color: #111827;
+    font-size: 12px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+`;
+
+const MobileActions = styled.div`
+  display: flex;
+  gap: 8px;
+
+  button {
+    flex: 1;
+    margin-right: 0;
+  }
+`;
+
+const MobileEmpty = styled.div`
+  border: 1px solid #ece7de;
+  background: #fff;
+  color: #6b7280;
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 14px;
 `;

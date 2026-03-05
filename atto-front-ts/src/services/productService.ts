@@ -1,5 +1,6 @@
 ﻿import type { CategoryType, IProduct } from '../types/product';
 import { API_BASE_URL } from '../config/api';
+import { authFetch } from '../utils/authFetch';
 import { mockProducts } from '../mocks/product';
 
 const API_BASE = API_BASE_URL;
@@ -77,7 +78,7 @@ const toBaseProduct = (row: AdminProductRow): IProduct => {
 };
 
 const fetchColorMap = async (): Promise<Map<number, ColorRow>> => {
-  const response = await fetch(`${API_BASE}/api/admin/colors`);
+  const response = await authFetch(`${API_BASE}/api/admin/colors`);
   const result = await response.json();
   const map = new Map<number, ColorRow>();
 
@@ -97,7 +98,7 @@ const fetchColorMap = async (): Promise<Map<number, ColorRow>> => {
 };
 
 export const getAdminProducts = async (): Promise<AdminProductRow[]> => {
-  const response = await fetch(`${API_BASE}/api/admin/products`);
+  const response = await authFetch(`${API_BASE}/api/admin/products`);
   const result = await response.json();
 
   if (!response.ok || !result.ok || !Array.isArray(result.products)) {
@@ -108,7 +109,7 @@ export const getAdminProducts = async (): Promise<AdminProductRow[]> => {
 };
 
 export const toggleAdminProductLive = async (productId: number, isLive: boolean): Promise<void> => {
-  const response = await fetch(`${API_BASE}/api/admin/products/${productId}/live`, {
+  const response = await authFetch(`${API_BASE}/api/admin/products/${productId}/live`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isLive: isLive ? 1 : 0 }),
@@ -121,7 +122,7 @@ export const toggleAdminProductLive = async (productId: number, isLive: boolean)
 };
 
 export const deleteAdminProduct = async (productId: number): Promise<void> => {
-  const response = await fetch(`${API_BASE}/api/admin/products/${productId}`, {
+  const response = await authFetch(`${API_BASE}/api/admin/products/${productId}`, {
     method: 'DELETE',
   });
   const result = await response.json();
@@ -145,7 +146,7 @@ export const getProducts = async (): Promise<IProduct[]> => {
 export const getProductById = async (id: number): Promise<IProduct | undefined> => {
   try {
     const [productResponse, colorMap] = await Promise.all([
-      fetch(`${API_BASE}/api/admin/products/${id}`),
+      authFetch(`${API_BASE}/api/admin/products/${id}`),
       fetchColorMap(),
     ]);
 

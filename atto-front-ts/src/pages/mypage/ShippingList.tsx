@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 import { showConfirm } from '../../components/common/appDialog';
 
 type StoredUser = {
@@ -50,7 +51,7 @@ const ShippingList: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/addresses`);
+      const response = await authFetch(`${API_BASE_URL}/api/users/${user.userId}/addresses`);
       const result = await response.json();
 
       if (!response.ok || !result.ok) {
@@ -142,7 +143,7 @@ const ShippingList: React.FC = () => {
         : `${API_BASE_URL}/api/users/${user.userId}/addresses`;
       const method = modalMode === 'edit' ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -169,7 +170,7 @@ const ShippingList: React.FC = () => {
     const confirmed = await showConfirm('이 배송지를 삭제할까요?');
     if (!confirmed) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/addresses/${addressId}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/users/${user.userId}/addresses/${addressId}`, {
         method: 'DELETE',
       });
       const result = await response.json();
@@ -186,7 +187,7 @@ const ShippingList: React.FC = () => {
   const handleSetDefault = async (addressId: number) => {
     if (!user?.userId) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user.userId}/addresses/${addressId}/default`, {
+      const response = await authFetch(`${API_BASE_URL}/api/users/${user.userId}/addresses/${addressId}/default`, {
         method: 'PATCH',
       });
       const result = await response.json();

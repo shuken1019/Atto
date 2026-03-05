@@ -117,7 +117,7 @@ const FooterSection = styled.div`
     font-size: 24px;
     color: #333;
     margin-bottom: 16px;
-    font-family: serif;
+    font-family: 'Playfair Display', serif;
   }
   h4 {
     font-size: 16px;

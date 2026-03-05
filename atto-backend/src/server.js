@@ -80,6 +80,17 @@ app.use(
   })
 );
 
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  if (IS_PROD) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -96,6 +107,223 @@ const PRODUCT_STATUS = new Set(["ON_SALE", "SOLD_OUT", "HIDDEN"]);
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://3.37.232.202:${port}`;
 const BANNER_JSON_PATH = path.join(UPLOADS_DIR, "banner-settings.json");
+const AUTH_TOKEN_SECRET = String(process.env.AUTH_TOKEN_SECRET ?? "change-this-auth-token-secret");
+const AUTH_TOKEN_TTL_SEC = Number(process.env.AUTH_TOKEN_TTL_SEC ?? 60 * 60 * 24 * 7);
+const AUTH_COOKIE_NAME = String(process.env.AUTH_COOKIE_NAME ?? "atto_auth");
+const IS_PROD = String(process.env.NODE_ENV ?? "").toLowerCase() === "production";
+const COOKIE_SECURE = String(process.env.AUTH_COOKIE_SECURE ?? (IS_PROD ? "true" : "false")).toLowerCase() === "true";
+const COOKIE_SAME_SITE = String(process.env.AUTH_COOKIE_SAME_SITE ?? "lax").toLowerCase();
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const parseCookies = (req) => {
+  const raw = String(req.headers?.cookie ?? "");
+  const out = {};
+  if (!raw) return out;
+  const pairs = raw.split(";");
+  for (const pair of pairs) {
+    const idx = pair.indexOf("=");
+    if (idx <= 0) continue;
+    const k = pair.slice(0, idx).trim();
+    const v = pair.slice(idx + 1).trim();
+    if (!k) continue;
+    out[k] = decodeURIComponent(v);
+  }
+  return out;
+};
+
+const createRateLimiter = ({ windowMs, max, keyPrefix }) => {
+  const bucket = new Map();
+  return (req, res, next) => {
+    const ip = String(req.ip ?? req.headers["x-forwarded-for"] ?? "unknown");
+    const now = Date.now();
+    const key = `${keyPrefix}:${ip}`;
+    const current = bucket.get(key);
+
+    if (!current || now > current.resetAt) {
+      bucket.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    current.count += 1;
+    bucket.set(key, current);
+    if (current.count > max) {
+      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSec));
+      return res.status(429).json({ ok: false, message: "too many requests" });
+    }
+    return next();
+  };
+};
+
+const signupRateLimitWindowMs = toPositiveInt(
+  process.env.SIGNUP_RATE_LIMIT_WINDOW_MS,
+  IS_PROD ? 60 * 60 * 1000 : 5 * 60 * 1000
+);
+const signupRateLimitMax = toPositiveInt(
+  process.env.SIGNUP_RATE_LIMIT_MAX,
+  IS_PROD ? 5 : 50
+);
+
+const loginRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: "auth:login" });
+const signupRateLimit = createRateLimiter({
+  windowMs: signupRateLimitWindowMs,
+  max: signupRateLimitMax,
+  keyPrefix: "auth:signup",
+});
+const kakaoRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "auth:kakao" });
+
+const base64UrlEncode = (value) =>
+  Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+
+const base64UrlDecode = (value) => {
+  const normalized = String(value ?? "").replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  return Buffer.from(`${normalized}${padding}`, "base64").toString("utf8");
+};
+
+const signAuthToken = (payload) => {
+  const header = { alg: "HS256", typ: "ATTO" };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac("sha256", AUTH_TOKEN_SECRET)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
+};
+
+const verifyAuthToken = (token) => {
+  const raw = String(token ?? "").trim();
+  const parts = raw.split(".");
+  if (parts.length !== 3) return null;
+  const [encodedHeader, encodedPayload, signature] = parts;
+  const expectedSignature = crypto
+    .createHmac("sha256", AUTH_TOKEN_SECRET)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  if (signature !== expectedSignature) return null;
+  try {
+    const payload = JSON.parse(base64UrlDecode(encodedPayload));
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isInteger(Number(payload?.exp)) || Number(payload.exp) < now) return null;
+    const userId = Number(payload?.uid);
+    const role = String(payload?.role ?? "USER").toUpperCase();
+    if (!Number.isInteger(userId) || userId <= 0) return null;
+    return {
+      userId,
+      role,
+      iat: Number(payload?.iat ?? 0),
+      exp: Number(payload?.exp ?? 0),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const issueAuthToken = (user) => {
+  const userId = Number(user?.userId);
+  const role = String(user?.role ?? "USER").toUpperCase();
+  const now = Math.floor(Date.now() / 1000);
+  return signAuthToken({
+    uid: userId,
+    role,
+    iat: now,
+    exp: now + AUTH_TOKEN_TTL_SEC,
+  });
+};
+
+const extractBearerToken = (req) => {
+  const authHeader = String(req.headers?.authorization ?? "").trim();
+  if (!authHeader) return "";
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer") return "";
+  return String(token ?? "").trim();
+};
+
+const setAuthCookie = (res, token) => {
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAME_SITE,
+    path: "/",
+    maxAge: AUTH_TOKEN_TTL_SEC * 1000,
+  });
+};
+
+const clearAuthCookie = (res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAME_SITE,
+    path: "/",
+  });
+};
+
+const extractAuthToken = (req) => {
+  const bearer = extractBearerToken(req);
+  if (bearer) return bearer;
+  const cookies = parseCookies(req);
+  return String(cookies[AUTH_COOKIE_NAME] ?? "").trim();
+};
+
+const requireAuth = (req, res, next) => {
+  const token = extractAuthToken(req);
+  if (!token) {
+    return res.status(401).json({ ok: false, message: "auth required" });
+  }
+  const auth = verifyAuthToken(token);
+  if (!auth) {
+    return res.status(401).json({ ok: false, message: "invalid or expired token" });
+  }
+  req.auth = auth;
+  return next();
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.auth) {
+    return res.status(401).json({ ok: false, message: "auth required" });
+  }
+  if (String(req.auth.role ?? "").toUpperCase() !== "ADMIN") {
+    return res.status(403).json({ ok: false, message: "admin required" });
+  }
+  return next();
+};
+
+const requireSelfOrAdmin = (req, res, next) => {
+  if (!req.auth) {
+    return res.status(401).json({ ok: false, message: "auth required" });
+  }
+  const paramUserId = Number(req.params.userId);
+  if (!Number.isInteger(paramUserId) || paramUserId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId" });
+  }
+  if (req.auth.userId !== paramUserId && String(req.auth.role ?? "").toUpperCase() !== "ADMIN") {
+    return res.status(403).json({ ok: false, message: "forbidden user scope" });
+  }
+  return next();
+};
+
+const isPublicAdminReadRoute = (req) => {
+  if (String(req.method).toUpperCase() !== "GET") return false;
+  const p = String(req.path ?? "");
+  return p === "/colors" || /^\/products(?:\/\d+)?$/.test(p);
+};
+
+const requireAdminForAdminApi = (req, res, next) => {
+  if (isPublicAdminReadRoute(req)) {
+    return next();
+  }
+  return requireAuth(req, res, () => requireAdmin(req, res, next));
+};
 
 const s3 = process.env.S3_BUCKET
   ? new S3Client({ region: process.env.AWS_REGION || "ap-northeast-2" })
@@ -116,6 +344,24 @@ const toIntOrNull = (value) => {
   if (!Number.isInteger(n)) return null;
   return n;
 };
+
+const normalizeText = (value) => String(value ?? "").trim();
+const digitsOnly = (value) => normalizeText(value).replace(/\D/g, "");
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(value));
+const isValidLoginId = (value) => /^[a-zA-Z0-9._-]{4,30}$/.test(normalizeText(value));
+const isValidName = (value) => {
+  const text = normalizeText(value);
+  return text.length >= 2 && text.length <= 30;
+};
+const isValidPhone = (value) => {
+  const d = digitsOnly(value);
+  return d.length >= 9 && d.length <= 12;
+};
+const isValidPasswordForSignup = (value) => {
+  const text = String(value ?? "");
+  return text.length >= 8 && text.length <= 72;
+};
+
 const buildOrderNo = (createdAt, orderId) => {
   const d = new Date(createdAt);
   const id = Number(orderId);
@@ -331,7 +577,7 @@ app.get("/api/banner", async (_req, res) => {
   }
 });
 
-app.post("/api/banner", async (req, res) => {
+app.post("/api/banner", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { mainText, seasonText, imageDataUrl, imageName, imageUrl: incomingImageUrl } = req.body ?? {};
 
@@ -352,12 +598,16 @@ app.post("/api/banner", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginRateLimit, async (req, res) => {
   const { loginId, email, password } = req.body ?? {};
-  const account = String(loginId ?? email ?? "").trim();
+  const account = normalizeText(loginId ?? email);
+  const plainPassword = String(password ?? "");
 
-  if (!account || !password) {
+  if (!account || !plainPassword) {
     return res.status(400).json({ ok: false, message: "loginId/password required" });
+  }
+  if (account.length > 100 || plainPassword.length > 128) {
+    return res.status(400).json({ ok: false, message: "invalid login payload" });
   }
 
   try {
@@ -367,38 +617,240 @@ app.post("/api/auth/login", async (req, res) => {
     );
 
     if (!Array.isArray(users) || users.length === 0) {
-      return res.status(401).json({ ok: false, message: "Invalid credentials" });
+      return res.status(401).json({ ok: false, message: "인증 실패" });
     }
 
     const user = users[0];
     const dbPassword = String(user.password ?? "");
     const isHash = dbPassword.startsWith("$2a$") || dbPassword.startsWith("$2b$") || dbPassword.startsWith("$2y$");
-    const passwordMatched = isHash ? await bcrypt.compare(password, dbPassword) : password === dbPassword;
+    const passwordMatched = isHash ? await bcrypt.compare(plainPassword, dbPassword) : plainPassword === dbPassword;
 
     if (!passwordMatched) {
-      return res.status(401).json({ ok: false, message: "Invalid credentials" });
+      return res.status(401).json({ ok: false, message: "인증 실패" });
     }
 
+    const userPayload = {
+      userId: user.userId,
+      id: user.id,
+      email: user.mail,
+      name: user.name,
+      role: String(user.role ?? "USER").toUpperCase(),
+    };
+    const token = issueAuthToken(userPayload);
+    setAuthCookie(res, token);
     return res.json({
       ok: true,
-      user: {
-        userId: user.userId,
-        id: user.id,
-        email: user.mail,
-        name: user.name,
-        role: String(user.role ?? "USER").toUpperCase(),
-      },
+      user: userPayload,
     });
   } catch (error) {
     return res.status(500).json({ ok: false, message: "Login failed", error: String(error?.message ?? error) });
   }
 });
 
-app.post("/api/auth/signup", async (req, res) => {
-  const { id, name, phone, mail, password, recipientName, zipcode, address1, address2 } = req.body ?? {};
+const loginOrSyncKakaoUser = async (accessToken) => {
+  const token = String(accessToken ?? "").trim();
+  if (!token) {
+    throw new Error("accessToken required");
+  }
 
-  if (!id || !name || !phone || !mail || !password) {
+  const kakaoResp = await fetch("https://kapi.kakao.com/v2/user/me", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+    },
+  });
+
+  if (!kakaoResp.ok) {
+    throw new Error("Invalid Kakao access token");
+  }
+
+  const kakaoUser = await kakaoResp.json();
+  const kakaoIdRaw = kakaoUser?.id;
+  if (!kakaoIdRaw) {
+    throw new Error("Kakao user info not found");
+  }
+
+  const kakaoId = String(kakaoIdRaw);
+  const nickname = String(kakaoUser?.kakao_account?.profile?.nickname ?? "").trim() || "카카오회원";
+  const emailFromKakao = String(kakaoUser?.kakao_account?.email ?? "").trim().toLowerCase();
+  const loginId = `kakao_${kakaoId}`;
+  const email = emailFromKakao || `${loginId}@kakao.local`;
+
+  const [existingRows] = await pool.query(
+    "SELECT userId, id, mail, name, COALESCE(role, 'USER') AS role FROM `user` WHERE mail = ? OR id = ? LIMIT 1",
+    [email, loginId]
+  );
+
+  let user = Array.isArray(existingRows) && existingRows.length > 0 ? existingRows[0] : null;
+
+  if (!user) {
+    const randomPassword = crypto.randomBytes(24).toString("hex");
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+    await pool.query(
+      "INSERT INTO `user` (id, name, phone, mail, password, role, created_at, updated_at) " +
+        "VALUES (?, ?, ?, ?, ?, 'USER', NOW(), NOW())",
+      [loginId, nickname, "", email, hashedPassword]
+    );
+
+    const [newRows] = await pool.query(
+      "SELECT userId, id, mail, name, COALESCE(role, 'USER') AS role FROM `user` WHERE id = ? LIMIT 1",
+      [loginId]
+    );
+    user = Array.isArray(newRows) && newRows.length > 0 ? newRows[0] : null;
+  } else {
+    const nextName = nickname || String(user.name ?? "");
+    const nextMail = email || String(user.mail ?? "");
+    const needsUpdate = nextName !== String(user.name ?? "") || nextMail !== String(user.mail ?? "");
+
+    if (needsUpdate) {
+      await pool.query(
+        "UPDATE `user` SET name = ?, mail = ?, updated_at = NOW() WHERE userId = ?",
+        [nextName, nextMail, user.userId]
+      );
+      user.name = nextName;
+      user.mail = nextMail;
+    }
+  }
+
+  if (!user?.userId) {
+    throw new Error("Kakao login failed (user sync)");
+  }
+
+  return {
+    userId: user.userId,
+    id: user.id,
+    email: user.mail,
+    name: user.name,
+    role: String(user.role ?? "USER").toUpperCase(),
+  };
+};
+
+app.post("/api/auth/kakao/login", kakaoRateLimit, async (req, res) => {
+  const { accessToken } = req.body ?? {};
+  const token = String(accessToken ?? "").trim();
+  if (!token) {
+    return res.status(400).json({ ok: false, message: "accessToken required" });
+  }
+
+  try {
+    const user = await loginOrSyncKakaoUser(token);
+    setAuthCookie(res, issueAuthToken(user));
+    return res.json({ ok: true, user });
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    if (message === "Invalid Kakao access token" || message === "Kakao user info not found") {
+      return res.status(401).json({ ok: false, message });
+    }
+    return res.status(500).json({ ok: false, message: "Kakao login failed", error: message });
+  }
+});
+
+app.post("/api/auth/kakao/callback", kakaoRateLimit, async (req, res) => {
+  const { code, redirectUri } = req.body ?? {};
+  const authCode = String(code ?? "").trim();
+  const callbackUrl = String(redirectUri ?? "").trim();
+  const restApiKey = String(process.env.KAKAO_REST_API_KEY ?? "").trim();
+  const kakaoClientSecret = String(process.env.KAKAO_CLIENT_SECRET ?? "").trim();
+
+  if (!authCode || !callbackUrl) {
+    return res.status(400).json({ ok: false, message: "code/redirectUri required" });
+  }
+  if (!restApiKey) {
+    return res.status(500).json({ ok: false, message: "KAKAO_REST_API_KEY missing" });
+  }
+
+  try {
+    const requestToken = async (withSecret) => {
+      const body = new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: restApiKey,
+        redirect_uri: callbackUrl,
+        code: authCode,
+      });
+      if (withSecret && kakaoClientSecret) {
+        body.set("client_secret", kakaoClientSecret);
+      }
+
+      const resp = await fetch("https://kauth.kakao.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+        body: body.toString(),
+      });
+
+      const raw = await resp.text();
+      let json = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = null;
+      }
+      return { ok: resp.ok, raw, json };
+    };
+
+    const firstTryWithSecret = Boolean(kakaoClientSecret);
+    let tokenResult = await requestToken(firstTryWithSecret);
+
+    if (!tokenResult.ok && firstTryWithSecret) {
+      const errorCode = String(tokenResult?.json?.error ?? "");
+      if (errorCode === "invalid_client") {
+        tokenResult = await requestToken(false);
+      }
+    }
+
+    if (!tokenResult.ok) {
+      return res.status(401).json({ ok: false, message: "Kakao token exchange failed", detail: tokenResult.raw });
+    }
+
+    const tokenData = tokenResult.json ?? {};
+    const accessToken = String(tokenData?.access_token ?? "").trim();
+    if (!accessToken) {
+      return res.status(401).json({ ok: false, message: "Kakao access_token missing" });
+    }
+
+    const user = await loginOrSyncKakaoUser(accessToken);
+    setAuthCookie(res, issueAuthToken(user));
+    return res.json({ ok: true, user });
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: "Kakao callback failed", error: String(error?.message ?? error) });
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  clearAuthCookie(res);
+  return res.json({ ok: true });
+});
+
+app.post("/api/auth/signup", signupRateLimit, async (req, res) => {
+  const { id, name, phone, mail, password, recipientName, zipcode, address1, address2 } = req.body ?? {};
+  const safeId = normalizeText(id);
+  const safeName = normalizeText(name);
+  const safePhone = digitsOnly(phone);
+  const safeMail = normalizeText(mail).toLowerCase();
+  const plainPassword = String(password ?? "");
+  const safeRecipientName = normalizeText(recipientName);
+  const safeZipcode = normalizeText(zipcode);
+  const safeAddress1 = normalizeText(address1);
+  const safeAddress2 = normalizeText(address2);
+
+  if (!safeId || !safeName || !safePhone || !safeMail || !plainPassword) {
     return res.status(400).json({ ok: false, message: "id/name/phone/mail/password required" });
+  }
+  if (!isValidLoginId(safeId)) {
+    return res.status(400).json({ ok: false, message: "아이디 형식이 올바르지 않습니다. (4~30자, 영문/숫자/._-)" });
+  }
+  if (!isValidName(safeName)) {
+    return res.status(400).json({ ok: false, message: "이름은 2~30자로 입력해주세요." });
+  }
+  if (!isValidPhone(safePhone)) {
+    return res.status(400).json({ ok: false, message: "연락처 형식이 올바르지 않습니다." });
+  }
+  if (!isValidEmail(safeMail)) {
+    return res.status(400).json({ ok: false, message: "이메일 형식이 올바르지 않습니다." });
+  }
+  if (!isValidPasswordForSignup(plainPassword)) {
+    return res.status(400).json({ ok: false, message: "비밀번호는 8~72자로 입력해주세요." });
   }
 
   let conn;
@@ -408,39 +860,39 @@ app.post("/api/auth/signup", async (req, res) => {
 
     const [duplicates] = await conn.query(
       "SELECT id, mail FROM `user` WHERE id = ? OR mail = ? LIMIT 1",
-      [id, mail]
+      [safeId, safeMail]
     );
 
     if (Array.isArray(duplicates) && duplicates.length > 0) {
       const dup = duplicates[0];
-      if (dup.id === id) {
-        return res.status(409).json({ ok: false, message: "?대? ?ъ슜 以묒씤 ?꾩씠?붿엯?덈떎." });
+      if (dup.id === safeId) {
+        return res.status(409).json({ ok: false, message: "이미 사용 중인 아이디입니다." });
       }
-      if (dup.mail === mail) {
-        return res.status(409).json({ ok: false, message: "?대? ?ъ슜 以묒씤 ?대찓?쇱엯?덈떎." });
+      if (dup.mail === safeMail) {
+        return res.status(409).json({ ok: false, message: "이미 사용 중인 이메일입니다." });
       }
     }
 
-    const hashedPassword = await bcrypt.hash(String(password), 10);
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     const [insertResult] = await conn.query(
       "INSERT INTO `user` (id, name, phone, mail, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'USER', NOW(), NOW())",
-      [id, name, phone, mail, hashedPassword]
+      [safeId, safeName, safePhone, safeMail, hashedPassword]
     );
 
     const newUserId = insertResult.insertId;
-    const hasAddress = Boolean(zipcode || address1 || address2);
+    const hasAddress = Boolean(safeZipcode || safeAddress1 || safeAddress2);
 
     if (hasAddress) {
       await conn.query(
         "INSERT INTO address (userId, recipientName, phone, zipcode, address1, address2, isDefault, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())",
         [
           newUserId,
-          recipientName || name,
-          phone,
-          zipcode || "",
-          address1 || "",
-          address2 || "",
+          safeRecipientName || safeName,
+          safePhone,
+          safeZipcode,
+          safeAddress1,
+          safeAddress2,
         ]
       );
     }
@@ -464,6 +916,9 @@ app.post("/api/auth/signup", async (req, res) => {
     }
   }
 });
+
+app.use("/api/users/:userId", requireAuth, requireSelfOrAdmin);
+app.use("/api/admin", requireAdminForAdminApi);
 
 app.get("/api/users/:userId/profile", async (req, res) => {
   const userId = Number(req.params.userId);
@@ -508,27 +963,35 @@ app.put("/api/users/:userId/profile", async (req, res) => {
     address1,
     address2,
   } = req.body ?? {};
+  const safeName = normalizeText(name);
+  const safePhone = digitsOnly(phone);
+  const safeRecipientName = normalizeText(recipientName);
+  const safeZipcode = normalizeText(zipcode);
+  const safeAddress1 = normalizeText(address1);
+  const safeAddress2 = normalizeText(address2);
+  const safeCurrentPassword = String(currentPassword ?? "");
+  const safeNewPassword = String(newPassword ?? "");
 
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(400).json({ ok: false, message: "invalid userId" });
   }
-  if (!name || !phone) {
+  if (!safeName || !safePhone) {
     return res.status(400).json({ ok: false, message: "name/phone required" });
+  }
+  if (!isValidName(safeName)) {
+    return res.status(400).json({ ok: false, message: "이름은 2~30자로 입력해주세요." });
+  }
+  if (!isValidPhone(safePhone)) {
+    return res.status(400).json({ ok: false, message: "연락처 형식이 올바르지 않습니다." });
+  }
+  if (safeNewPassword && !isValidPasswordForSignup(safeNewPassword)) {
+    return res.status(400).json({ ok: false, message: "새 비밀번호는 8~72자로 입력해주세요." });
   }
 
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-
-    let finalThumbnail = safeThumbnail;
-    if (thumbnailDataUrl) {
-      finalThumbnail = await saveThumbnailFromDataUrl(thumbnailDataUrl, thumbnailName);
-    }
-    if (!finalThumbnail) {
-      await conn.rollback();
-      return res.status(400).json({ ok: false, message: "thumbnail required" });
-    }
 
     const [users] = await conn.query(
       "SELECT userId, password FROM `user` WHERE userId = ? LIMIT 1",
@@ -542,29 +1005,29 @@ app.put("/api/users/:userId/profile", async (req, res) => {
 
     const user = users[0];
     let passwordToSave = user.password;
-    const wantsPasswordChange = Boolean(newPassword && String(newPassword).trim().length > 0);
+    const wantsPasswordChange = Boolean(safeNewPassword);
 
     if (wantsPasswordChange) {
-      if (!currentPassword) {
+      if (!safeCurrentPassword) {
         await conn.rollback();
         return res.status(400).json({ ok: false, message: "currentPassword required" });
       }
       const dbPassword = String(user.password ?? "");
       const isHash = dbPassword.startsWith("$2a$") || dbPassword.startsWith("$2b$") || dbPassword.startsWith("$2y$");
-      const matched = isHash ? await bcrypt.compare(String(currentPassword), dbPassword) : String(currentPassword) === dbPassword;
+      const matched = isHash ? await bcrypt.compare(safeCurrentPassword, dbPassword) : safeCurrentPassword === dbPassword;
       if (!matched) {
         await conn.rollback();
-        return res.status(401).json({ ok: false, message: "?꾩옱 鍮꾨?踰덊샇媛 ?쇱튂?섏? ?딆뒿?덈떎." });
+        return res.status(401).json({ ok: false, message: "현재 비밀번호가 일치하지 않습니다." });
       }
-      passwordToSave = await bcrypt.hash(String(newPassword), 10);
+      passwordToSave = await bcrypt.hash(safeNewPassword, 10);
     }
 
     await conn.query(
       "UPDATE `user` SET name = ?, phone = ?, password = ?, updated_at = NOW() WHERE userId = ?",
-      [name, phone, passwordToSave, userId]
+      [safeName, safePhone, passwordToSave, userId]
     );
 
-    const hasAddress = Boolean(zipcode || address1 || address2 || recipientName);
+    const hasAddress = Boolean(safeZipcode || safeAddress1 || safeAddress2 || safeRecipientName);
     if (hasAddress) {
       const [existing] = await conn.query(
         "SELECT addressId FROM address WHERE userId = ? AND isDefault = 1 ORDER BY addressId ASC LIMIT 1",
@@ -575,24 +1038,24 @@ app.put("/api/users/:userId/profile", async (req, res) => {
         await conn.query(
           "UPDATE address SET recipientName = ?, phone = ?, zipcode = ?, address1 = ?, address2 = ?, updated_at = NOW() WHERE addressId = ?",
           [
-            recipientName || name,
-            phone,
-            zipcode || "",
-            address1 || "",
-            address2 || "",
+            safeRecipientName || safeName,
+            safePhone,
+            safeZipcode,
+            safeAddress1,
+            safeAddress2,
             existing[0].addressId,
           ]
         );
       } else {
         await conn.query(
           "INSERT INTO address (userId, recipientName, phone, zipcode, address1, address2, isDefault, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())",
-          [userId, recipientName || name, phone, zipcode || "", address1 || "", address2 || ""]
+          [userId, safeRecipientName || safeName, safePhone, safeZipcode, safeAddress1, safeAddress2]
         );
       }
     }
 
     await conn.commit();
-    return res.json({ ok: true, message: "?뚯썝?뺣낫媛 ?섏젙?섏뿀?듬땲??" });
+    return res.json({ ok: true, message: "회원정보가 수정되었습니다." });
   } catch (error) {
     if (conn) {
       await conn.rollback();
@@ -602,6 +1065,48 @@ app.put("/api/users/:userId/profile", async (req, res) => {
     if (conn) {
       conn.release();
     }
+  }
+});
+
+app.delete("/api/users/:userId", async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ ok: false, message: "invalid userId" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query("SELECT userId FROM `user` WHERE userId = ? LIMIT 1", [userId]);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ ok: false, message: "user not found" });
+    }
+
+    const stamp = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
+    const deletedId = `deleted_${userId}_${stamp}`;
+    const deletedMail = `deleted_${userId}_${stamp}@withdrawn.local`;
+    const deletedPassword = await bcrypt.hash(`withdrawn_${userId}_${stamp}`, 10);
+
+    await conn.query("DELETE FROM address WHERE userId = ?", [userId]);
+    await conn.query("DELETE FROM scrap WHERE userId = ?", [userId]);
+    await conn.query("DELETE FROM cart WHERE userId = ?", [userId]);
+
+    await conn.query(
+      "UPDATE `user` SET id = ?, mail = ?, name = '탈퇴회원', phone = '00000000000', password = ?, role = 'USER', updated_at = NOW() WHERE userId = ?",
+      [deletedId, deletedMail, deletedPassword, userId]
+    );
+
+    await conn.commit();
+    clearAuthCookie(res);
+    return res.json({ ok: true, message: "회원탈퇴가 완료되었습니다." });
+  } catch (error) {
+    if (conn) await conn.rollback();
+    return res.status(500).json({ ok: false, message: "withdraw failed", error: String(error?.message ?? error) });
+  } finally {
+    if (conn) conn.release();
   }
 });
 

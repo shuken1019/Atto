@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 
 type AdminUser = {
   userId: number;
@@ -22,7 +23,7 @@ const UserManagement: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`);
+      const response = await authFetch(`${API_BASE_URL}/api/admin/users`);
       const result = await response.json();
       if (!response.ok || !result.ok) {
         alert(result.message ?? '사용자 목록 조회 실패');
@@ -66,7 +67,7 @@ const UserManagement: React.FC = () => {
     const nextRole: AdminUser['role'] = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
     setWorkingUserId(user.userId);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${user.userId}/role`, {
+      const response = await authFetch(`${API_BASE_URL}/api/admin/users/${user.userId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: nextRole }),
@@ -144,6 +145,40 @@ const UserManagement: React.FC = () => {
         </UserTable>
       </TableContainer>
 
+      <MobileList>
+        {loading ? (
+          <MobileEmpty>불러오는 중...</MobileEmpty>
+        ) : filteredUsers.length === 0 ? (
+          <MobileEmpty>검색 결과가 없습니다.</MobileEmpty>
+        ) : (
+          filteredUsers.map((user) => (
+            <MobileCard key={`mobile-${user.userId}`}>
+              <MobileCardTop>
+                <div>
+                  <strong>{user.name}</strong>
+                  <small>{user.id}</small>
+                </div>
+                <RoleTag $active={user.role === 'ADMIN'}>{roleLabel(user.role)}</RoleTag>
+              </MobileCardTop>
+              <MobileInfo>
+                <span>USER ID</span><b>{user.userId}</b>
+                <span>이메일</span><b>{user.mail}</b>
+                <span>연락처</span><b>{user.phone ?? '-'}</b>
+                <span>가입일</span><b>{formatDate(user.created_at)}</b>
+              </MobileInfo>
+              <MobileActions>
+                <ActionBtn type="button" onClick={() => setSelectedUser(user)}>
+                  상세
+                </ActionBtn>
+                <ActionBtn type="button" onClick={() => toggleRole(user)} disabled={workingUserId === user.userId}>
+                  {user.role === 'ADMIN' ? '관리자 해제' : '관리자 지정'}
+                </ActionBtn>
+              </MobileActions>
+            </MobileCard>
+          ))
+        )}
+      </MobileList>
+
       {selectedUser && (
         <>
           <Backdrop onClick={() => setSelectedUser(null)} />
@@ -181,6 +216,10 @@ const Container = styled.div`
   margin: -40px;
   padding: 24px;
   min-height: calc(100vh - 80px);
+
+  @media (max-width: 760px) {
+    padding: 12px;
+  }
 `;
 
 const Header = styled.div`
@@ -188,22 +227,48 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 14px;
+
+  @media (max-width: 760px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 12px;
+    padding-top: 10px;
+  }
 `;
 
 const Title = styled.h2`
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
   font-size: 21px;
+
+  @media (max-width: 760px) {
+    font-size: 24px;
+    text-align: center;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
 `;
 
 const SearchBox = styled.div`
   display: flex;
   gap: 10px;
+
   input {
     padding: 10px 15px;
     border: 1px solid #d9d9d9;
     width: 280px;
     background: #fff;
+  }
+
+  @media (max-width: 760px) {
+    width: 100%;
+    justify-content: center;
+    margin-top: 2px;
+
+    input {
+      width: min(82vw, 320px);
+    }
   }
 `;
 
@@ -212,6 +277,10 @@ const TableContainer = styled.div`
   border: 1px solid #ece7de;
   padding: 4px 0;
   overflow-x: auto;
+
+  @media (max-width: 760px) {
+    display: none;
+  }
 `;
 
 const UserTable = styled.table`
@@ -296,4 +365,82 @@ const DetailGrid = styled.div`
 
 const ModalFooter = styled.div`
   margin-top: 14px;
+`;
+
+const MobileList = styled.div`
+  display: none;
+
+  @media (max-width: 760px) {
+    display: grid;
+    gap: 10px;
+  }
+`;
+
+const MobileCard = styled.article`
+  background: #fff;
+  border: 1px solid #ece7de;
+  padding: 12px;
+`;
+
+const MobileCardTop = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+
+  strong {
+    display: block;
+    font-size: 16px;
+    color: #111827;
+  }
+
+  small {
+    display: block;
+    margin-top: 2px;
+    color: #6b7280;
+    font-size: 12px;
+  }
+`;
+
+const MobileInfo = styled.div`
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 6px 8px;
+  padding: 10px;
+  border: 1px solid #ece7de;
+  background: #fcfbf8;
+  margin-bottom: 10px;
+
+  span {
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  b {
+    color: #111827;
+    font-size: 12px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+`;
+
+const MobileActions = styled.div`
+  display: flex;
+  gap: 8px;
+
+  button {
+    margin-right: 0;
+    flex: 1;
+    min-height: 34px;
+  }
+`;
+
+const MobileEmpty = styled.div`
+  border: 1px solid #ece7de;
+  background: #fff;
+  color: #6b7280;
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 14px;
 `;

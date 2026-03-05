@@ -1,6 +1,8 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { useOutletContext } from 'react-router-dom';
 import { API_BASE_URL } from '../../config/api';
+import { authFetch } from '../../utils/authFetch';
 
 type DashboardResponse = {
   ok: boolean;
@@ -34,13 +36,14 @@ const statusLabel = (status: string): string => {
 };
 
 const Dashboard: React.FC = () => {
+  const { toggleAdminMenu } = useOutletContext<{ toggleAdminMenu: () => void }>();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`);
+        const response = await authFetch(`${API_BASE_URL}/api/admin/dashboard`);
         const result = (await response.json()) as DashboardResponse;
         if (!response.ok || !result.ok) {
           alert('대시보드 조회 실패');
@@ -64,7 +67,14 @@ const Dashboard: React.FC = () => {
 
   return (
     <Page>
-      <Title>대시보드</Title>
+      <TitleRow>
+        <TitleHamburger type="button" aria-label="관리자 메뉴 열기" onClick={toggleAdminMenu}>
+          <span />
+          <span />
+          <span />
+        </TitleHamburger>
+        <Title>대시보드</Title>
+      </TitleRow>
 
       {loading ? (
         <Card>불러오는 중...</Card>
@@ -177,11 +187,51 @@ const Page = styled.div`
   min-height: calc(100vh - 80px);
 `;
 
+const TitleRow = styled.div`
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+  min-height: 36px;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+`;
+
 const Title = styled.h2`
   font-size: 21px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
-  margin-bottom: 14px;
+  text-align: center;
+`;
+
+const TitleHamburger = styled.button`
+  position: absolute;
+  left: 0;
+  width: 38px;
+  height: 34px;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+
+  span {
+    width: 22px;
+    height: 2px;
+    background: #1a1a1a;
+    border-radius: 1px;
+  }
+
+  @media (min-width: 901px) {
+    display: none;
+  }
 `;
 
 const TopGrid = styled.div`

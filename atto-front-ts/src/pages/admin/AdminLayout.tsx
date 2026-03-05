@@ -1,14 +1,44 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../config/api';
+
+type AdminOutletContext = {
+  toggleAdminMenu: () => void;
+};
+
+const resolveMobileAdminTitle = (pathname: string): string => {
+  if (pathname.startsWith('/admin/dashboard') || pathname === '/admin') return '대시보드';
+  if (pathname.startsWith('/admin/products')) return '상품 관리';
+  if (pathname.startsWith('/admin/upload/direct-write')) return '직접 작성';
+  if (pathname.startsWith('/admin/upload/html-write')) return 'HTML 작성';
+  if (pathname.startsWith('/admin/upload')) return '상품 업로드';
+  if (pathname.startsWith('/admin/orders/created/')) return '주문서';
+  if (pathname.startsWith('/admin/orders/created')) return '생성 주문 확인';
+  if (pathname.startsWith('/admin/orders/create')) return '주문 생성';
+  if (pathname.startsWith('/admin/orders')) return '주문 및 배송';
+  if (pathname.startsWith('/admin/sales')) return '매출 관리';
+  if (pathname.startsWith('/admin/users')) return '사용자 관리';
+  if (pathname.startsWith('/admin/banners')) return '배너 관리';
+  return 'ADMIN';
+};
 
 const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isSalesPage = location.pathname.startsWith('/admin/sales');
+  const mobileTitle = resolveMobileAdminTitle(location.pathname);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // ignore logout network error, client state still clears
+    }
     localStorage.removeItem('atto_auth');
     localStorage.removeItem('attoUser');
     window.dispatchEvent(new Event('auth-changed'));
@@ -18,15 +48,6 @@ const AdminLayout: React.FC = () => {
 
   return (
     <AdminWrapper>
-      <TopBar>
-        <MenuButton type="button" aria-label="메뉴 열기" onClick={() => setMenuOpen((v) => !v)}>
-          <span />
-          <span />
-          <span />
-        </MenuButton>
-        <TopTitle>ADMIN</TopTitle>
-      </TopBar>
-
       <Sidebar $open={menuOpen}>
         <LogoArea to="/">
           <HomeIcon viewBox="0 0 24 24" aria-label="홈으로 이동" role="img">
@@ -58,7 +79,15 @@ const AdminLayout: React.FC = () => {
       {menuOpen && <MobileBackdrop onClick={() => setMenuOpen(false)} />}
 
       <MainContent $isSalesPage={isSalesPage}>
-        <Outlet />
+        <MobilePageHeader>
+          <MobileMenuButton type="button" aria-label="메뉴 열기" onClick={() => setMenuOpen((v) => !v)}>
+            <span />
+            <span />
+            <span />
+          </MobileMenuButton>
+          <MobilePageTitle>{mobileTitle}</MobilePageTitle>
+        </MobilePageHeader>
+        <Outlet context={{ toggleAdminMenu: () => setMenuOpen((v) => !v) } satisfies AdminOutletContext} />
       </MainContent>
     </AdminWrapper>
   );
@@ -70,7 +99,7 @@ const AdminWrapper = styled.div`
   display: flex;
   min-height: 100vh;
   background: #fcfcfc;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
 
   h1,
   h2,
@@ -88,7 +117,7 @@ const AdminWrapper = styled.div`
   th,
   td,
   label {
-    font-family: 'Noto Sans KR', sans-serif;
+    font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   }
 `;
 
@@ -192,28 +221,33 @@ const MainContent = styled.main<{ $isSalesPage: boolean }>`
   @media (min-width: 901px) {
     margin-left: 260px;
   }
-`;
-
-const TopBar = styled.div`
-  position: fixed;
-  top: 14px;
-  left: 14px;
-  z-index: 130;
-  display: none;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: rgba(246, 244, 239, 0.95);
-  border: 1px solid #e3dfd5;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 
   @media (max-width: 900px) {
-    display: inline-flex;
+    & > * > h1:first-child,
+    & > * > h2:first-child,
+    & > * > div > h1:first-child,
+    & > * > div > h2:first-child {
+      display: none;
+    }
   }
 `;
 
-const MenuButton = styled.button`
+const MobilePageHeader = styled.div`
+  display: none;
+
+  @media (max-width: 900px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-height: 38px;
+    margin-bottom: 12px;
+  }
+`;
+
+const MobileMenuButton = styled.button`
+  position: absolute;
+  left: 0;
   width: 38px;
   height: 34px;
   border: none;
@@ -223,7 +257,7 @@ const MenuButton = styled.button`
   justify-content: center;
   align-items: center;
   gap: 6px;
-  padding: 4px;
+  padding: 0;
   cursor: pointer;
 
   span {
@@ -234,10 +268,11 @@ const MenuButton = styled.button`
   }
 `;
 
-const TopTitle = styled.span`
-  font-size: 15px;
+const MobilePageTitle = styled.h2`
+  font-size: 21px;
   font-weight: 700;
-  letter-spacing: 1px;
+  color: #111827;
+  text-align: center;
 `;
 
 const MobileBackdrop = styled.div`

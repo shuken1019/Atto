@@ -1,4 +1,5 @@
 ﻿import { API_BASE_URL } from '../config/api';
+import { authFetch } from '../utils/authFetch';
 
 type StoredUser = {
   userId: number;
@@ -31,7 +32,7 @@ const getUserIdOrThrow = (): number => {
 
 export const getScraps = async (): Promise<ScrapItem[]> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/scraps`);
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/scraps`);
   const result = await response.json();
   if (!response.ok || !result.ok) {
     throw new Error(result.message ?? '스크랩 목록 조회 실패');
@@ -41,7 +42,7 @@ export const getScraps = async (): Promise<ScrapItem[]> => {
 
 export const addScrap = async (productId: number): Promise<boolean> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/scraps`, {
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/scraps`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ productId }),
@@ -63,7 +64,7 @@ export const addScrap = async (productId: number): Promise<boolean> => {
 
 export const removeScrap = async (productId: number): Promise<void> => {
   const userId = getUserIdOrThrow();
-  const response = await fetch(`${API_BASE_URL}/api/users/${userId}/scraps/${productId}`, {
+  const response = await authFetch(`${API_BASE_URL}/api/users/${userId}/scraps/${productId}`, {
     method: 'DELETE',
   });
   const result = await response.json();

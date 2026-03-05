@@ -61,6 +61,10 @@ const Signup: React.FC = () => {
 
       const result = await response.json();
       if (!response.ok || !result.ok) {
+        if (response.status === 409) {
+          alert(result.message ?? '이미 사용 중인 아이디 또는 이메일입니다.');
+          return;
+        }
         alert(result.message ?? '회원가입에 실패했습니다.');
         return;
       }
@@ -77,10 +81,10 @@ const Signup: React.FC = () => {
   return (
     <Container>
       <FormWrapper>
-        <Title>CREATE ACCOUNT</Title>
+        <Title>회원가입</Title>
         <form onSubmit={handleSubmit}>
           <InputGroup>
-            <Label>Name</Label>
+            <Label>이름</Label>
             <Input
               type="text"
               name="name"
@@ -92,7 +96,7 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>ID</Label>
+            <Label>아이디</Label>
             <Input
               type="text"
               name="username"
@@ -104,7 +108,7 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Password</Label>
+            <Label>비밀번호</Label>
             <Input
               type="password"
               name="password"
@@ -125,7 +129,7 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Phone</Label>
+            <Label>핸드폰 번호</Label>
             <Input
               type="tel"
               name="phone"
@@ -137,7 +141,7 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Email</Label>
+            <Label>이메일</Label>
             <Input
               type="email"
               name="email"
@@ -149,7 +153,7 @@ const Signup: React.FC = () => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Shipping Address (optional)</Label>
+            <Label>배송지 (선택)</Label>
             <Input
               type="text"
               name="zipcode"
@@ -182,7 +186,7 @@ const Signup: React.FC = () => {
         </form>
 
         <LoginLink>
-          Already have an account? <Link to="/login">Log in</Link>
+          이미 계정이 있습니까? <Link to="/login">로그인</Link>
         </LoginLink>
       </FormWrapper>
     </Container>

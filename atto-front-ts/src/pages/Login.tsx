@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
@@ -10,13 +10,17 @@ declare global {
       isInitialized: () => boolean;
       Auth: {
         loginWithKakaoAccount?: (options: {
-          success: (authObj: unknown) => void;
+          success: (authObj: { access_token?: string }) => void;
           fail: (error: unknown) => void;
         }) => void;
         login: (options: {
           scope?: string;
-          success: (authObj: unknown) => void;
+          success: (authObj: { access_token?: string }) => void;
           fail: (error: unknown) => void;
+        }) => void;
+        authorize?: (options: {
+          redirectUri: string;
+          state?: string;
         }) => void;
       };
       API: {
@@ -35,12 +39,15 @@ const Login: React.FC = () => {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [kakaoReady, setKakaoReady] = useState(false);
+  const [kakaoCallbackPending, setKakaoCallbackPending] = useState(false);
+  const kakaoCallbackHandledRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           loginId: loginId.trim(),
@@ -119,43 +126,132 @@ const Login: React.FC = () => {
       });
   }, []);
 
+  useEffect(() => {
+    if (kakaoCallbackHandledRef.current) return;
+    const code = new URLSearchParams(window.location.search).get('code');
+    if (!code) return;
+    kakaoCallbackHandledRef.current = true;
+
+    const run = async () => {
+      setKakaoCallbackPending(true);
+      try {
+        const redirectUri = `${window.location.origin}/login`;
+        // Prevent duplicate callback attempts on rerender/refresh.
+        window.history.replaceState({}, '', '/login');
+        const response = await fetch(`${API_BASE_URL}/api/auth/kakao/callback`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, redirectUri }),
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result?.ok || !result?.user) {
+          const detail = String(result?.detail ?? '').trim();
+          alert(detail ? `${result?.message ?? '카카오 로그인 처리 실패'}\n${detail}` : (result?.message ?? '카카오 로그인 처리에 실패했습니다.'));
+          return;
+        }
+
+        const role = String(result.user.role ?? 'USER').toUpperCase();
+        localStorage.setItem(
+          'attoUser',
+          JSON.stringify({
+            userId: Number(result.user.userId),
+            id: String(result.user.id ?? ''),
+            email: String(result.user.email ?? ''),
+            name: String(result.user.name ?? ''),
+            role,
+          }),
+        );
+        localStorage.setItem(
+          'atto_auth',
+          JSON.stringify({
+            userId: Number(result.user.userId),
+            role,
+            provider: 'kakao',
+          }),
+        );
+        window.dispatchEvent(new Event('auth-changed'));
+        navigate(role === 'ADMIN' ? '/admin' : '/');
+      } catch {
+        alert('카카오 로그인 처리 중 네트워크 오류가 발생했습니다.');
+      } finally {
+        setKakaoCallbackPending(false);
+      }
+    };
+
+    run();
+  }, [navigate]);
+
   const handleKakaoLogin = () => {
     if (!kakaoReady || !window.Kakao) {
       alert('카카오 로그인 준비 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
 
-    const onLoginSuccess = () => {
-      window.Kakao?.API.request({
-        url: '/v2/user/me',
-        success: (response) => {
-          const user = response as {
-            id?: number;
-            kakao_account?: { email?: string; profile?: { nickname?: string } };
-          };
+    const startKakaoWebLogin = () => {
+      const kakaoRestKey = import.meta.env.VITE_KAKAO_REST_API_KEY as string | undefined;
+      if (!kakaoRestKey) {
+        alert('카카오 REST API 키가 없습니다. .env의 VITE_KAKAO_REST_API_KEY를 확인해주세요.');
+        return;
+      }
+      const redirectUri = `${window.location.origin}/login`;
+      const authorizeUrl =
+        `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(kakaoRestKey)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+      window.location.href = authorizeUrl;
+    };
 
-          const kakaoEmail = user.kakao_account?.email || `kakao_${user.id ?? 'user'}@kakao.local`;
-          localStorage.setItem(
-            'atto_auth',
-            JSON.stringify({
-              email: kakaoEmail,
-              role: 'USER',
-              provider: 'kakao',
-              nickname: user.kakao_account?.profile?.nickname ?? '',
-            }),
-          );
-          window.dispatchEvent(new Event('auth-changed'));
-          alert('카카오 로그인에 성공했습니다.');
-          navigate('/');
-        },
-        fail: () => {
-          alert('카카오 사용자 정보를 불러오지 못했습니다.');
-        },
-      });
+    const onLoginSuccess = async (authObj: { access_token?: string }) => {
+      const accessToken = String(authObj?.access_token ?? '').trim();
+      if (!accessToken) {
+        alert('카카오 액세스 토큰을 확인할 수 없습니다.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/kakao/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken }),
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result?.ok || !result?.user) {
+          alert(result?.message ?? '카카오 로그인에 실패했습니다.');
+          return;
+        }
+
+        const role = String(result.user.role ?? 'USER').toUpperCase();
+        localStorage.setItem(
+          'attoUser',
+          JSON.stringify({
+            userId: Number(result.user.userId),
+            id: String(result.user.id ?? ''),
+            email: String(result.user.email ?? ''),
+            name: String(result.user.name ?? ''),
+            role,
+          }),
+        );
+        localStorage.setItem(
+          'atto_auth',
+          JSON.stringify({
+            userId: Number(result.user.userId),
+            role,
+            provider: 'kakao',
+          }),
+        );
+        window.dispatchEvent(new Event('auth-changed'));
+        alert('카카오 로그인에 성공했습니다.');
+        navigate(role === 'ADMIN' ? '/admin' : '/');
+      } catch {
+        alert('카카오 로그인 API 호출에 실패했습니다.');
+      }
     };
 
     const onLoginFail = () => {
-      alert('카카오 로그인이 취소되었거나 실패했습니다.');
+      startKakaoWebLogin();
     };
 
     if (typeof window.Kakao.Auth.loginWithKakaoAccount === 'function') {
@@ -173,8 +269,7 @@ const Login: React.FC = () => {
       });
       return;
     }
-
-    alert('카카오 로그인 API를 사용할 수 없습니다.');
+    startKakaoWebLogin();
   };
 
   const handleKakaoButtonClick = () => {
@@ -214,13 +309,13 @@ const Login: React.FC = () => {
 
           <Button type="submit">SIGN IN</Button>
         </form>
-        <KakaoButton type="button" onClick={handleKakaoButtonClick} disabled={!kakaoReady}>
+        <KakaoButton type="button" onClick={handleKakaoButtonClick} disabled={!kakaoReady || kakaoCallbackPending}>
           카카오로 로그인
         </KakaoButton>
 
         <Links>
-          <StyledLink to="/signup">Create Account</StyledLink>
-          <StyledLink to="/find-account">Forgot ID/Password?</StyledLink>
+          <StyledLink to="/signup">회원가입</StyledLink>
+          <StyledLink to="/find-account">아이디/비밀번호 찾기</StyledLink>
         </Links>
       </FormWrapper>
     </Container>

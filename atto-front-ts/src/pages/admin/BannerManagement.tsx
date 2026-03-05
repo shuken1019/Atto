@@ -102,7 +102,7 @@ const Container = styled.div`
 
 const Title = styled.h2`
   font-size: 21px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
   margin-bottom: 14px;
 `;
@@ -118,7 +118,7 @@ const SectionTitle = styled.h4`
   margin-bottom: 20px;
   color: #1a1a1a;
   font-size: 18px;
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Playfair Display', 'Noto Sans KR', sans-serif;
   font-weight: 500;
 `;
 
