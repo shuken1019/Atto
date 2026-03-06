@@ -14,14 +14,48 @@ dotenv.config();
 const app = express(); 
 const port = Number(process.env.PORT ?? 4000);
 const host = String(process.env.HOST ?? "0.0.0.0");
+const IS_PROD = String(process.env.NODE_ENV ?? "").toLowerCase() === "production";
+const FORCE_HTTPS = String(process.env.FORCE_HTTPS ?? (IS_PROD ? "true" : "false")).toLowerCase() === "true";
+const AUTH_TOKEN_SECRET = String(process.env.AUTH_TOKEN_SECRET ?? "").trim();
+const AUTH_TOKEN_TTL_SEC = Number(process.env.AUTH_TOKEN_TTL_SEC ?? 60 * 60 * 24 * 7);
+const AUTH_COOKIE_NAME = String(process.env.AUTH_COOKIE_NAME ?? "atto_auth");
+const COOKIE_SECURE = String(process.env.AUTH_COOKIE_SECURE ?? (IS_PROD ? "true" : "false")).toLowerCase() === "true";
+const COOKIE_SAME_SITE = String(process.env.AUTH_COOKIE_SAME_SITE ?? (IS_PROD ? "lax" : "lax")).toLowerCase();
+const EXPOSE_INTERNAL_ERRORS = String(process.env.EXPOSE_INTERNAL_ERRORS ?? "false").toLowerCase() === "true";
+const AUDIT_LOG_PATH = String(process.env.AUDIT_LOG_PATH ?? "").trim();
+const RATE_LIMIT_REDIS_REST_URL = String(process.env.RATE_LIMIT_REDIS_REST_URL ?? "").trim().replace(/\/+$/, "");
+const RATE_LIMIT_REDIS_REST_TOKEN = String(process.env.RATE_LIMIT_REDIS_REST_TOKEN ?? "").trim();
+const RATE_LIMIT_USE_REDIS = Boolean(RATE_LIMIT_REDIS_REST_URL && RATE_LIMIT_REDIS_REST_TOKEN);
+const DB_HOST = String(process.env.DB_HOST ?? "127.0.0.1").trim();
+const DB_PORT = Number(process.env.DB_PORT ?? 3306);
+const DB_USER = String(process.env.DB_USER ?? "atto_app").trim();
+const DB_PASSWORD = String(process.env.DB_PASSWORD ?? "");
+const DB_NAME = String(process.env.DB_NAME ?? "atto").trim();
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `${FORCE_HTTPS ? "https" : "http"}://3.37.232.202:${port}`;
+
+if (!AUTH_TOKEN_SECRET || AUTH_TOKEN_SECRET.length < 32) {
+  throw new Error("AUTH_TOKEN_SECRET must be set to at least 32 characters.");
+}
+if (IS_PROD && !COOKIE_SECURE) {
+  throw new Error("AUTH_COOKIE_SECURE must be true in production.");
+}
+if (!["lax", "strict", "none"].includes(COOKIE_SAME_SITE)) {
+  throw new Error("AUTH_COOKIE_SAME_SITE must be one of: lax, strict, none.");
+}
+if (COOKIE_SAME_SITE === "none" && !COOKIE_SECURE) {
+  throw new Error("sameSite=none requires AUTH_COOKIE_SECURE=true.");
+}
+if (IS_PROD && (!DB_HOST || !DB_USER || !DB_PASSWORD || !DB_NAME)) {
+  throw new Error("DB_HOST/DB_USER/DB_PASSWORD/DB_NAME are required in production.");
+}
 
 // 2. DB 연결 정보 (비밀번호 확인 필수!)
 const pool = mysql.createPool({
-  host: process.env.DB_HOST ?? "atto-production-db.cn602qo04clr.ap-northeast-2.rds.amazonaws.com",
-  port: Number(process.env.DB_PORT ?? 3306),
-  user: process.env.DB_USER ?? "admin",
-  password: process.env.DB_PASSWORD ?? "atto12345", // 여기에 실제 바꾼 암호를 넣으세요!
-  database: process.env.DB_NAME ?? "atto",
+  host: DB_HOST,
+  port: DB_PORT,
+  user: DB_USER,
+  password: DB_PASSWORD,
+  database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
 });
@@ -80,6 +114,20 @@ app.use(
   })
 );
 
+app.set("trust proxy", 1);
+
+if (FORCE_HTTPS) {
+  app.use((req, res, next) => {
+    const xfProto = String(req.headers["x-forwarded-proto"] ?? "").toLowerCase();
+    const isHttps = req.secure || xfProto === "https";
+    if (!isHttps) {
+      const targetHost = String(req.headers.host ?? "");
+      return res.redirect(308, `https://${targetHost}${req.originalUrl}`);
+    }
+    return next();
+  });
+}
+
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -105,18 +153,47 @@ const CATEGORY_ID_FALLBACK = {
 
 const PRODUCT_STATUS = new Set(["ON_SALE", "SOLD_OUT", "HIDDEN"]);
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? `http://3.37.232.202:${port}`;
 const BANNER_JSON_PATH = path.join(UPLOADS_DIR, "banner-settings.json");
-const AUTH_TOKEN_SECRET = String(process.env.AUTH_TOKEN_SECRET ?? "change-this-auth-token-secret");
-const AUTH_TOKEN_TTL_SEC = Number(process.env.AUTH_TOKEN_TTL_SEC ?? 60 * 60 * 24 * 7);
-const AUTH_COOKIE_NAME = String(process.env.AUTH_COOKIE_NAME ?? "atto_auth");
-const IS_PROD = String(process.env.NODE_ENV ?? "").toLowerCase() === "production";
-const COOKIE_SECURE = String(process.env.AUTH_COOKIE_SECURE ?? (IS_PROD ? "true" : "false")).toLowerCase() === "true";
-const COOKIE_SAME_SITE = String(process.env.AUTH_COOKIE_SAME_SITE ?? "lax").toLowerCase();
 const toPositiveInt = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 };
+
+const toSafeErrorBody = (message, error) => {
+  if (EXPOSE_INTERNAL_ERRORS || !IS_PROD) {
+    return { ok: false, message, error: String(error?.message ?? error) };
+  }
+  return { ok: false, message };
+};
+
+const writeAuditLog = async (payload) => {
+  if (!AUDIT_LOG_PATH) return;
+  const line = `${JSON.stringify({ ts: new Date().toISOString(), ...payload })}\n`;
+  try {
+    await fs.appendFile(AUDIT_LOG_PATH, line, "utf8");
+  } catch {
+    // ignore audit log failures
+  }
+};
+
+app.use((req, res, next) => {
+  const started = Date.now();
+  res.on("finish", () => {
+    const pathName = String(req.path ?? "");
+    const method = String(req.method ?? "").toUpperCase();
+    const shouldLog = pathName.startsWith("/api/auth/") || pathName.startsWith("/api/admin/");
+    if (!shouldLog) return;
+    void writeAuditLog({
+      method,
+      path: pathName,
+      status: res.statusCode,
+      ip: String(req.ip ?? ""),
+      ua: String(req.headers["user-agent"] ?? ""),
+      ms: Date.now() - started,
+    });
+  });
+  next();
+});
 
 const parseCookies = (req) => {
   const raw = String(req.headers?.cookie ?? "");
@@ -136,24 +213,69 @@ const parseCookies = (req) => {
 
 const createRateLimiter = ({ windowMs, max, keyPrefix }) => {
   const bucket = new Map();
-  return (req, res, next) => {
-    const ip = String(req.ip ?? req.headers["x-forwarded-for"] ?? "unknown");
-    const now = Date.now();
-    const key = `${keyPrefix}:${ip}`;
+
+  const updateInMemoryBucket = (key, nowMs) => {
     const current = bucket.get(key);
 
-    if (!current || now > current.resetAt) {
-      bucket.set(key, { count: 1, resetAt: now + windowMs });
-      return next();
+    if (!current || nowMs > current.resetAt) {
+      const resetAt = nowMs + windowMs;
+      bucket.set(key, { count: 1, resetAt });
+      return { count: 1, resetAt };
     }
 
     current.count += 1;
     bucket.set(key, current);
-    if (current.count > max) {
-      const retryAfterSec = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    return { count: current.count, resetAt: current.resetAt };
+  };
+
+  const redisCommand = async (pathName) => {
+    const response = await fetch(`${RATE_LIMIT_REDIS_REST_URL}${pathName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RATE_LIMIT_REDIS_REST_TOKEN}`,
+      },
+    });
+    if (!response.ok) throw new Error(`redis rest request failed: ${response.status}`);
+    return response.json();
+  };
+
+  return async (req, res, next) => {
+    const ip = String(req.ip ?? req.headers["x-forwarded-for"] ?? "unknown");
+    const now = Date.now();
+    const key = `${keyPrefix}:${ip}`;
+
+    let count = 0;
+    let retryAfterSec = 0;
+
+    if (RATE_LIMIT_USE_REDIS) {
+      try {
+        const encoded = encodeURIComponent(key);
+        const incrResult = await redisCommand(`/incr/${encoded}`);
+        count = Number(incrResult?.result ?? 0);
+
+        if (count === 1) {
+          await redisCommand(`/expire/${encoded}/${Math.max(1, Math.ceil(windowMs / 1000))}`);
+        }
+
+        const ttlResult = await redisCommand(`/ttl/${encoded}`);
+        const ttl = Number(ttlResult?.result ?? 0);
+        retryAfterSec = ttl > 0 ? ttl : Math.max(1, Math.ceil(windowMs / 1000));
+      } catch {
+        const local = updateInMemoryBucket(key, now);
+        count = local.count;
+        retryAfterSec = Math.max(1, Math.ceil((local.resetAt - now) / 1000));
+      }
+    } else {
+      const local = updateInMemoryBucket(key, now);
+      count = local.count;
+      retryAfterSec = Math.max(1, Math.ceil((local.resetAt - now) / 1000));
+    }
+
+    if (count > max) {
       res.setHeader("Retry-After", String(retryAfterSec));
       return res.status(429).json({ ok: false, message: "too many requests" });
     }
+
     return next();
   };
 };
@@ -361,6 +483,49 @@ const isValidPasswordForSignup = (value) => {
   const text = String(value ?? "");
   return text.length >= 8 && text.length <= 72;
 };
+const validateWithSchema = (payload, schema) => {
+  for (const rule of schema) {
+    const value = payload?.[rule.key];
+    if (!rule.validate(value, payload)) {
+      return rule.message;
+    }
+  }
+  return "";
+};
+
+const loginSchema = [
+  {
+    key: "account",
+    validate: (value) => Boolean(normalizeText(value)) && normalizeText(value).length <= 100,
+    message: "로그인 아이디를 확인해주세요.",
+  },
+  {
+    key: "password",
+    validate: (value) => {
+      const text = String(value ?? "");
+      return text.length > 0 && text.length <= 128;
+    },
+    message: "비밀번호를 확인해주세요.",
+  },
+];
+
+const signupSchema = [
+  { key: "id", validate: isValidLoginId, message: "아이디 형식이 올바르지 않습니다. (4~30자, 영문/숫자/._-)" },
+  { key: "name", validate: isValidName, message: "이름은 2~30자로 입력해주세요." },
+  { key: "phone", validate: isValidPhone, message: "연락처 형식이 올바르지 않습니다." },
+  { key: "mail", validate: isValidEmail, message: "이메일 형식이 올바르지 않습니다." },
+  { key: "password", validate: isValidPasswordForSignup, message: "비밀번호는 8~72자로 입력해주세요." },
+];
+
+const profileSchema = [
+  { key: "name", validate: isValidName, message: "이름은 2~30자로 입력해주세요." },
+  { key: "phone", validate: isValidPhone, message: "연락처 형식이 올바르지 않습니다." },
+  {
+    key: "newPassword",
+    validate: (value) => !String(value ?? "") || isValidPasswordForSignup(value),
+    message: "새 비밀번호는 8~72자로 입력해주세요.",
+  },
+];
 
 const buildOrderNo = (createdAt, orderId) => {
   const d = new Date(createdAt);
@@ -573,7 +738,7 @@ app.get("/api/banner", async (_req, res) => {
     const banner = await readBannerSettings();
     return res.json({ ok: true, banner });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "banner fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("banner fetch failed", error));
   }
 });
 
@@ -594,7 +759,7 @@ app.post("/api/banner", requireAuth, requireAdmin, async (req, res) => {
 
     return res.json({ ok: true, banner: saved });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "banner save failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("banner save failed", error));
   }
 });
 
@@ -602,12 +767,10 @@ app.post("/api/auth/login", loginRateLimit, async (req, res) => {
   const { loginId, email, password } = req.body ?? {};
   const account = normalizeText(loginId ?? email);
   const plainPassword = String(password ?? "");
+  const loginValidationMessage = validateWithSchema({ account, password: plainPassword }, loginSchema);
 
-  if (!account || !plainPassword) {
-    return res.status(400).json({ ok: false, message: "loginId/password required" });
-  }
-  if (account.length > 100 || plainPassword.length > 128) {
-    return res.status(400).json({ ok: false, message: "invalid login payload" });
+  if (loginValidationMessage) {
+    return res.status(400).json({ ok: false, message: loginValidationMessage });
   }
 
   try {
@@ -643,7 +806,7 @@ app.post("/api/auth/login", loginRateLimit, async (req, res) => {
       user: userPayload,
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "Login failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("Login failed", error));
   }
 });
 
@@ -743,7 +906,7 @@ app.post("/api/auth/kakao/login", kakaoRateLimit, async (req, res) => {
     if (message === "Invalid Kakao access token" || message === "Kakao user info not found") {
       return res.status(401).json({ ok: false, message });
     }
-    return res.status(500).json({ ok: false, message: "Kakao login failed", error: message });
+    return res.status(500).json(toSafeErrorBody("Kakao login failed", error));
   }
 });
 
@@ -800,7 +963,9 @@ app.post("/api/auth/kakao/callback", kakaoRateLimit, async (req, res) => {
     }
 
     if (!tokenResult.ok) {
-      return res.status(401).json({ ok: false, message: "Kakao token exchange failed", detail: tokenResult.raw });
+      const body = { ok: false, message: "Kakao token exchange failed" };
+      if (!IS_PROD) body.detail = tokenResult.raw;
+      return res.status(401).json(body);
     }
 
     const tokenData = tokenResult.json ?? {};
@@ -813,7 +978,7 @@ app.post("/api/auth/kakao/callback", kakaoRateLimit, async (req, res) => {
     setAuthCookie(res, issueAuthToken(user));
     return res.json({ ok: true, user });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "Kakao callback failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("Kakao callback failed", error));
   }
 });
 
@@ -833,24 +998,16 @@ app.post("/api/auth/signup", signupRateLimit, async (req, res) => {
   const safeZipcode = normalizeText(zipcode);
   const safeAddress1 = normalizeText(address1);
   const safeAddress2 = normalizeText(address2);
+  const signupValidationMessage = validateWithSchema(
+    { id: safeId, name: safeName, phone: safePhone, mail: safeMail, password: plainPassword },
+    signupSchema
+  );
 
   if (!safeId || !safeName || !safePhone || !safeMail || !plainPassword) {
     return res.status(400).json({ ok: false, message: "id/name/phone/mail/password required" });
   }
-  if (!isValidLoginId(safeId)) {
-    return res.status(400).json({ ok: false, message: "아이디 형식이 올바르지 않습니다. (4~30자, 영문/숫자/._-)" });
-  }
-  if (!isValidName(safeName)) {
-    return res.status(400).json({ ok: false, message: "이름은 2~30자로 입력해주세요." });
-  }
-  if (!isValidPhone(safePhone)) {
-    return res.status(400).json({ ok: false, message: "연락처 형식이 올바르지 않습니다." });
-  }
-  if (!isValidEmail(safeMail)) {
-    return res.status(400).json({ ok: false, message: "이메일 형식이 올바르지 않습니다." });
-  }
-  if (!isValidPasswordForSignup(plainPassword)) {
-    return res.status(400).json({ ok: false, message: "비밀번호는 8~72자로 입력해주세요." });
+  if (signupValidationMessage) {
+    return res.status(400).json({ ok: false, message: signupValidationMessage });
   }
 
   let conn;
@@ -901,7 +1058,7 @@ app.post("/api/auth/signup", signupRateLimit, async (req, res) => {
 
     return res.status(201).json({
       ok: true,
-      message: "?뚯썝媛?낆씠 ?꾨즺?섏뿀?듬땲??",
+      message: "회원가입이 완료되었습니다.",
       userId: newUserId,
       addressSaved: hasAddress,
     });
@@ -909,7 +1066,7 @@ app.post("/api/auth/signup", signupRateLimit, async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "Signup failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("Signup failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -947,7 +1104,7 @@ app.get("/api/users/:userId/profile", async (req, res) => {
       address: Array.isArray(addresses) && addresses.length > 0 ? addresses[0] : null,
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "profile fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("profile fetch failed", error));
   }
 });
 
@@ -971,6 +1128,10 @@ app.put("/api/users/:userId/profile", async (req, res) => {
   const safeAddress2 = normalizeText(address2);
   const safeCurrentPassword = String(currentPassword ?? "");
   const safeNewPassword = String(newPassword ?? "");
+  const profileValidationMessage = validateWithSchema(
+    { name: safeName, phone: safePhone, newPassword: safeNewPassword },
+    profileSchema
+  );
 
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(400).json({ ok: false, message: "invalid userId" });
@@ -978,14 +1139,8 @@ app.put("/api/users/:userId/profile", async (req, res) => {
   if (!safeName || !safePhone) {
     return res.status(400).json({ ok: false, message: "name/phone required" });
   }
-  if (!isValidName(safeName)) {
-    return res.status(400).json({ ok: false, message: "이름은 2~30자로 입력해주세요." });
-  }
-  if (!isValidPhone(safePhone)) {
-    return res.status(400).json({ ok: false, message: "연락처 형식이 올바르지 않습니다." });
-  }
-  if (safeNewPassword && !isValidPasswordForSignup(safeNewPassword)) {
-    return res.status(400).json({ ok: false, message: "새 비밀번호는 8~72자로 입력해주세요." });
+  if (profileValidationMessage) {
+    return res.status(400).json({ ok: false, message: profileValidationMessage });
   }
 
   let conn;
@@ -1060,7 +1215,7 @@ app.put("/api/users/:userId/profile", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "profile update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("profile update failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1104,7 +1259,7 @@ app.delete("/api/users/:userId", async (req, res) => {
     return res.json({ ok: true, message: "회원탈퇴가 완료되었습니다." });
   } catch (error) {
     if (conn) await conn.rollback();
-    return res.status(500).json({ ok: false, message: "withdraw failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("withdraw failed", error));
   } finally {
     if (conn) conn.release();
   }
@@ -1123,7 +1278,7 @@ app.get("/api/users/:userId/addresses", async (req, res) => {
     );
     return res.json({ ok: true, addresses: rows });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "address list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("address list fetch failed", error));
   }
 });
 
@@ -1168,7 +1323,7 @@ app.post("/api/users/:userId/addresses", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "address create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("address create failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1217,7 +1372,7 @@ app.put("/api/users/:userId/addresses/:addressId", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "address update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("address update failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1256,7 +1411,7 @@ app.patch("/api/users/:userId/addresses/:addressId/default", async (req, res) =>
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "set default address failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("set default address failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1308,7 +1463,7 @@ app.delete("/api/users/:userId/addresses/:addressId", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "address delete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("address delete failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1329,7 +1484,7 @@ app.get("/api/users/:userId/scraps", async (req, res) => {
     );
     return res.json({ ok: true, scraps: rows });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "scrap list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("scrap list fetch failed", error));
   }
 });
 
@@ -1354,7 +1509,7 @@ app.post("/api/users/:userId/scraps", async (req, res) => {
 
     return res.json({ ok: true, alreadyScrapped: true });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "scrap create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("scrap create failed", error));
   }
 });
 
@@ -1376,7 +1531,7 @@ app.delete("/api/users/:userId/scraps/:productId", async (req, res) => {
     }
     return res.json({ ok: true, message: "scrap removed" });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "scrap delete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("scrap delete failed", error));
   }
 });
 
@@ -1407,7 +1562,7 @@ app.get("/api/users/:userId/cart", async (req, res) => {
     );
     return res.json({ ok: true, cartItems: rows });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "cart list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("cart list fetch failed", error));
   }
 });
 
@@ -1466,7 +1621,7 @@ app.post("/api/users/:userId/cart", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "cart create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("cart create failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1501,7 +1656,7 @@ app.patch("/api/users/:userId/cart/:cartId", async (req, res) => {
     }
     return res.json({ ok: true, cartId, quantity });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "cart update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("cart update failed", error));
   }
 });
 
@@ -1520,7 +1675,7 @@ app.delete("/api/users/:userId/cart/:cartId", async (req, res) => {
     }
     return res.json({ ok: true, message: "cart item removed" });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "cart delete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("cart delete failed", error));
   }
 });
 
@@ -1532,7 +1687,7 @@ app.get("/api/admin/users", async (_req, res) => {
     );
     return res.json({ ok: true, users: rows });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "admin user list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("admin user list fetch failed", error));
   }
 });
 
@@ -1554,7 +1709,7 @@ app.patch("/api/admin/users/:userId/role", async (req, res) => {
     }
     return res.json({ ok: true, userId, role });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "role update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("role update failed", error));
   }
 });
 
@@ -1631,7 +1786,7 @@ app.get("/api/admin/dashboard", async (_req, res) => {
       lowStockItems: lowStockRows,
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "admin dashboard fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("admin dashboard fetch failed", error));
   }
 });
 
@@ -1647,7 +1802,7 @@ app.get("/api/admin/products", async (_req, res) => {
     );
     return res.json({ ok: true, products: rows });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "product list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product list fetch failed", error));
   }
 });
 
@@ -1716,7 +1871,7 @@ app.get("/api/admin/products/:productId", async (req, res) => {
       productOptions,
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "product detail fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product detail fetch failed", error));
   }
 });
 
@@ -1838,7 +1993,7 @@ app.post("/api/admin/products", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "product create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product create failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -1985,7 +2140,7 @@ app.put("/api/admin/products/:productId", async (req, res) => {
     if (conn) {
       await conn.rollback();
     }
-    return res.status(500).json({ ok: false, message: "product update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product update failed", error));
   } finally {
     if (conn) {
       conn.release();
@@ -2011,7 +2166,7 @@ app.patch("/api/admin/products/:productId/live", async (req, res) => {
     }
     return res.json({ ok: true, productId, isLive });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "product live update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product live update failed", error));
   }
 });
 
@@ -2041,7 +2196,7 @@ app.delete("/api/admin/products/:productId", async (req, res) => {
     return res.json({ ok: true, productId });
   } catch (error) {
     if (conn) await conn.rollback();
-    return res.status(500).json({ ok: false, message: "product delete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("product delete failed", error));
   } finally {
     if (conn) conn.release();
   }
@@ -2085,7 +2240,7 @@ app.post("/api/users/:userId/orders", async (req, res) => {
     const orderId = Number(insertResult.insertId);
     return res.status(201).json({ ok: true, orderId, orderNo: buildOrderNo(new Date(), orderId) });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "order create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("order create failed", error));
   }
 });
 
@@ -2116,7 +2271,7 @@ app.get("/api/users/:userId/orders", async (req, res) => {
     }));
     return res.json({ ok: true, orders: normalized });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "order list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("order list fetch failed", error));
   }
 });
 
@@ -2152,7 +2307,7 @@ app.patch("/api/users/:userId/orders/:orderId/cancel", async (req, res) => {
 
     return res.json({ ok: true, orderId, status: "CANCELLED" });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "order cancel failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("order cancel failed", error));
   }
 });
 
@@ -2176,7 +2331,7 @@ app.post("/api/users/:userId/payments", async (req, res) => {
     );
     return res.status(201).json({ ok: true, paymentId: insertResult.insertId });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "payment create failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("payment create failed", error));
   }
 });
 
@@ -2196,7 +2351,7 @@ app.patch("/api/admin/payments/:paymentId/complete", async (req, res) => {
     }
     return res.json({ ok: true, message: "입금완료 처리되었습니다." });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "payment complete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("payment complete failed", error));
   }
 });
 
@@ -2219,7 +2374,7 @@ app.patch("/api/admin/orders/:orderId/payment-complete", async (req, res) => {
     await pool.query("UPDATE payment SET status = 'COMPLETED', updated_at = NOW() WHERE paymentId = ?", [paymentId]);
     return res.json({ ok: true, message: "입금완료 처리되었습니다." });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "payment complete failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("payment complete failed", error));
   }
 });
 
@@ -2239,7 +2394,7 @@ app.patch("/api/admin/payments/:paymentId/refund", async (req, res) => {
     }
     return res.json({ ok: true, message: "환불 처리되었습니다." });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "payment refund failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("payment refund failed", error));
   }
 });
 
@@ -2264,7 +2419,7 @@ app.patch("/api/admin/orders/:orderId/status", async (req, res) => {
     }
     return res.json({ ok: true, message: "二쇰Ц ?곹깭媛 蹂寃쎈릺?덉뒿?덈떎." });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "order status update failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("order status update failed", error));
   }
 });
 
@@ -2291,7 +2446,7 @@ app.get("/api/admin/orders", async (_req, res) => {
     }));
     return res.json({ ok: true, orders: normalized });
   } catch (error) {
-    return res.status(500).json({ ok: false, message: "admin order list fetch failed", error: String(error?.message ?? error) });
+    return res.status(500).json(toSafeErrorBody("admin order list fetch failed", error));
   }
 });
 
