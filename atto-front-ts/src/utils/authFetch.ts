@@ -23,5 +23,12 @@ export const authFetch = (input: RequestInfo | URL, init?: RequestInit): Promise
     ...init,
     credentials: init?.credentials ?? 'include',
     headers: withAuthHeaders(init?.headers),
+  }).then((response) => {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('attoUser');
+      localStorage.removeItem('atto_auth');
+      window.dispatchEvent(new Event('auth-changed'));
+    }
+    return response;
   });
 };

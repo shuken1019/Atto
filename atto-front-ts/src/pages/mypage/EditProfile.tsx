@@ -41,6 +41,7 @@ const EditProfile: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [postcodeReady, setPostcodeReady] = useState(false);
   const [formData, setFormData] = useState({
     id: '',
     mail: '',
@@ -92,11 +93,46 @@ const EditProfile: React.FC = () => {
     fetchProfile();
   }, [storedUser?.userId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if ((window as any).daum?.Postcode) {
+      setPostcodeReady(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.async = true;
+    script.onload = () => setPostcodeReady(true);
+    script.onerror = () => setPostcodeReady(false);
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
+  };
+
+  const openPostcode = () => {
+    if (!(window as any).daum?.Postcode) {
+      alert('우편번호 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    new (window as any).daum.Postcode({
+      oncomplete: (data: any) => {
+        setFormData((prev) => ({
+          ...prev,
+          zipcode: data.zonecode || '',
+          address1: data.roadAddress || data.jibunAddress || '',
+        }));
+      },
+    }).open();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -195,7 +231,12 @@ const EditProfile: React.FC = () => {
         </InputGroup>
         <InputGroup>
           <Label>우편번호</Label>
-          <Input name="zipcode" value={formData.zipcode} onChange={handleChange} />
+          <ZipcodeRow>
+            <Input name="zipcode" value={formData.zipcode} onChange={handleChange} />
+            <ZipcodeButton type="button" onClick={openPostcode} disabled={!postcodeReady}>
+              주소찾기
+            </ZipcodeButton>
+          </ZipcodeRow>
         </InputGroup>
         <InputGroup>
           <Label>주소</Label>
@@ -290,6 +331,34 @@ const SaveButton = styled.button`
   &:hover {
     background: #333;
   }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const ZipcodeRow = styled.div`
+  display: flex;
+  gap: 10px;
+
+  input {
+    flex: 1;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const ZipcodeButton = styled.button`
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  color: #1a1a1a;
+  padding: 12px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
 
   &:disabled {
     opacity: 0.6;

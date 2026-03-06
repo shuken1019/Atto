@@ -4,6 +4,7 @@ import { authFetch } from '../utils/authFetch';
 import { mockProducts } from '../mocks/product';
 
 const API_BASE = API_BASE_URL;
+const USE_MOCK_FALLBACK = Boolean(import.meta.env.DEV);
 
 export type AdminProductRow = {
   productId: number;
@@ -138,8 +139,10 @@ export const getProducts = async (): Promise<IProduct[]> => {
     return rows
       .filter((row) => String(row.status ?? 'ON_SALE') !== 'HIDDEN')
       .map((row) => toBaseProduct(row));
-  } catch {
-    return mockProducts;
+  } catch (error) {
+    if (USE_MOCK_FALLBACK) return mockProducts;
+    console.error('getProducts failed:', error);
+    return [];
   }
 };
 
@@ -201,8 +204,9 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
     }));
 
     return product;
-  } catch {
-    return mockProducts.find((product) => product.id === id);
+  } catch (error) {
+    if (USE_MOCK_FALLBACK) return mockProducts.find((product) => product.id === id);
+    console.error(`getProductById(${id}) failed:`, error);
+    return undefined;
   }
 };
-
