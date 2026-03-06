@@ -8,8 +8,8 @@ export type BannerSettings = {
 };
 
 const DEFAULT_BANNER: BannerSettings = {
-  mainText: 'ESSENTIALS',
-  seasonText: 'SPRING / SUMMER 2024',
+  mainText: '',
+  seasonText: '',
   imageUrl: '',
 };
 

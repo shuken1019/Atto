@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { getBanner, saveBanner } from '../../services/bannerService';
 
 const BannerManagement: React.FC = () => {
-  const [mainText, setMainText] = useState('ESSENTIALS');
+  const [mainText, setMainText] = useState('');
   const [seasonText, setSeasonText] = useState('');
   const [imagePreview, setImagePreview] = useState('');
   const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | undefined>(undefined);
@@ -13,7 +13,7 @@ const BannerManagement: React.FC = () => {
   useEffect(() => {
     getBanner()
       .then((banner) => {
-        setMainText(banner.mainText ?? 'ESSENTIALS');
+        setMainText(banner.mainText ?? '');
         setSeasonText(banner.seasonText ?? '');
         setImagePreview(banner.imageUrl ?? '');
         setPendingImageDataUrl(undefined);

@@ -21,10 +21,11 @@ const Home: React.FC = () => {
   const liveProducts = products.filter((p) => p.isLive);
   const bestSellers = products;
   const newArrivals = products.filter((p) => p.isNew);
-  const mainText = bannerSettings?.mainText?.trim() || 'ESSENTIALS';
+  const mainText = bannerSettings?.mainText?.trim() || '';
   const seasonText = bannerSettings?.seasonText?.trim() || '';
   const imageUrl = bannerSettings?.imageUrl?.trim() || '';
   const hasCustomImage = Boolean(imageUrl);
+  const hasMainText = mainText.length > 0;
 
   return (
     <HomePageContainer>
@@ -34,7 +35,7 @@ const Home: React.FC = () => {
         ) : (
           <MainBannerSVG />
         )}
-        {hasCustomImage && (
+        {hasCustomImage && hasMainText && (
           <BannerOverlay>
             <h2>{mainText}</h2>
             {seasonText.length > 0 && <p>{seasonText}</p>}
