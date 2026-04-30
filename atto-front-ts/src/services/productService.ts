@@ -59,18 +59,18 @@ const sizeLabelFromId = (sizeId: number): string => {
 const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_text?: string }): IProduct => {
   const thumbnailImage = row.thumbnail && row.thumbnail.trim() ? row.thumbnail : fallbackImage(Number(row.productId));
 
-  type DetailBlock = { url: string; text?: string };
+  type DetailBlock = { url: string; text: string };
   let detailBlocks: DetailBlock[] = [];
   try {
     const parsed = JSON.parse(String(row.detail_images ?? '[]'));
     if (Array.isArray(parsed)) {
-      detailBlocks = parsed
-        .map((item) => {
-          if (typeof item === 'string') return { url: item, text: '' };
-          if (item && typeof item.url === 'string') return { url: item.url, text: String(item.text ?? '') };
-          return null;
-        })
-        .filter((b): b is DetailBlock => b !== null && b.url.length > 0);
+      for (const item of parsed) {
+        if (typeof item === 'string' && item.length > 0) {
+          detailBlocks.push({ url: item, text: '' });
+        } else if (item && typeof item.url === 'string' && item.url.length > 0) {
+          detailBlocks.push({ url: item.url, text: String(item.text ?? '') });
+        }
+      }
     }
   } catch { /* empty */ }
 
