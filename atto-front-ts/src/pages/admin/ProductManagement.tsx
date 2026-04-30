@@ -27,7 +27,7 @@ const ProductManagement: React.FC = () => {
       const rows = await getAdminProducts();
       setProducts(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'product list fetch failed');
+      setError(e instanceof Error ? e.message : '상품 목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -46,7 +46,7 @@ const ProductManagement: React.FC = () => {
       await toggleAdminProductLive(productId, nextLive);
       setProducts((prev) => prev.map((row) => (Number(row.productId) === productId ? { ...row, isLive: nextLive ? 1 : 0 } : row)));
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'live update failed');
+      alert(e instanceof Error ? e.message : '라이브 상태 변경에 실패했습니다.');
     } finally {
       setTogglingId(null);
     }
@@ -54,7 +54,7 @@ const ProductManagement: React.FC = () => {
 
   const handleDelete = async (product: AdminProductRow) => {
     const productId = Number(product.productId);
-    const ok = await showConfirm(`Delete product #${productId} (${product.name})?`);
+    const ok = await showConfirm(`상품 #${productId} (${product.name})을(를) 삭제하시겠습니까?`);
     if (!ok) return;
 
     try {
@@ -62,7 +62,7 @@ const ProductManagement: React.FC = () => {
       await deleteAdminProduct(productId);
       setProducts((prev) => prev.filter((row) => Number(row.productId) !== productId));
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'delete failed');
+      alert(e instanceof Error ? e.message : '상품 삭제에 실패했습니다.');
     } finally {
       setDeletingId(null);
     }
@@ -90,7 +90,7 @@ const ProductManagement: React.FC = () => {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7}>Loading...</td>
+                <td colSpan={7}>불러오는 중...</td>
               </tr>
             )}
 
@@ -138,7 +138,7 @@ const ProductManagement: React.FC = () => {
       </TableWrap>
 
       <MobileList>
-        {loading && <MobileEmpty>Loading...</MobileEmpty>}
+        {loading && <MobileEmpty>불러오는 중...</MobileEmpty>}
         {!loading && error && <MobileEmpty>{error}</MobileEmpty>}
 
         {!loading && !error &&

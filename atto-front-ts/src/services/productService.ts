@@ -122,7 +122,7 @@ export const getAdminProducts = async (): Promise<AdminProductRow[]> => {
   const result = await response.json();
 
   if (!response.ok || !result.ok || !Array.isArray(result.products)) {
-    throw new Error(result?.message ?? 'admin product list fetch failed');
+    throw new Error(result?.message ?? '상품 목록을 불러오지 못했습니다.');
   }
 
   return result.products as AdminProductRow[];
@@ -137,7 +137,7 @@ export const toggleAdminProductLive = async (productId: number, isLive: boolean)
   const result = await response.json();
 
   if (!response.ok || !result.ok) {
-    throw new Error(result?.message ?? 'live update failed');
+    throw new Error(result?.message ?? '라이브 상태 변경에 실패했습니다.');
   }
 };
 
@@ -148,7 +148,7 @@ export const deleteAdminProduct = async (productId: number): Promise<void> => {
   const result = await response.json();
 
   if (!response.ok || !result.ok) {
-    throw new Error(result?.message ?? 'product delete failed');
+    throw new Error(result?.message ?? '상품 삭제에 실패했습니다.');
   }
 };
 
@@ -212,7 +212,7 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
     });
 
     product.keyInfo = [
-      `Stock total: ${(result.productColors ?? []).reduce((sum, row) => sum + Number(row.stock ?? 0), 0)}`,
+      `총 재고: ${(result.productColors ?? []).reduce((sum, row) => sum + Number(row.stock ?? 0), 0)}`,
     ];
 
     product.sizeGuide = Array.from(sizeLabelById.values()).map((size) => ({

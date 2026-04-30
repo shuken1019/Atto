@@ -150,7 +150,7 @@ const ProductUpload = () => {
         const response = await authFetch(`${API_BASE_URL}/api/admin/products/${productId}`);
         const result = await response.json();
         if (!response.ok || !result?.ok || !result?.product) {
-          alert(result?.message ?? 'Failed to load product info.');
+          alert(result?.message ?? '상품 정보를 불러오지 못했습니다.');
           return;
         }
 
@@ -202,7 +202,7 @@ const ProductUpload = () => {
         setOptionStocks(stockTextMap);
         setInitialOptionStocks(stockNumMap);
       } catch {
-        alert('Server connection failed.');
+        alert('서버 연결에 실패했습니다.');
       } finally {
         setLoadingEditData(false);
       }
@@ -326,19 +326,19 @@ const ProductUpload = () => {
     const priceNum = Number(price);
 
     if (!safeName) {
-      alert('Please enter product name.');
+      alert('상품명을 입력해주세요.');
       return;
     }
     if (!Number.isInteger(priceNum) || priceNum < 0) {
-      alert('Price must be a non-negative integer.');
+      alert('가격은 0 이상의 정수여야 합니다.');
       return;
     }
     if (selectedSizeIds.length === 0) {
-      alert('Select at least one size.');
+      alert('사이즈를 하나 이상 선택해주세요.');
       return;
     }
     if (!thumbnailFile && !thumbnailPath) {
-      alert('Please select a thumbnail image.');
+      alert('썸네일 이미지를 선택해주세요.');
       return;
     }
 
@@ -346,7 +346,7 @@ const ProductUpload = () => {
       const colorIds = sizeColorSelections[sizeId] ?? [];
       if (colorIds.length === 0) {
         const sizeLabel = AVAILABLE_SIZES.find((size) => size.sizeId === sizeId)?.label ?? String(sizeId);
-        alert(`${sizeLabel} size needs at least one color.`);
+        alert(`${sizeLabel} 사이즈에 색상을 하나 이상 선택해주세요.`);
         return;
       }
 
@@ -355,8 +355,8 @@ const ProductUpload = () => {
         const rawStock = String(optionStocks[key] ?? '').trim();
         if (rawStock.length === 0 && !isEditMode) {
           const sizeLabel = AVAILABLE_SIZES.find((size) => size.sizeId === sizeId)?.label ?? String(sizeId);
-          const colorLabel = availableColors.find((color) => color.colorId === colorId)?.name ?? `Color-${colorId}`;
-          alert(`${sizeLabel} / ${colorLabel} stock is required.`);
+          const colorLabel = availableColors.find((color) => color.colorId === colorId)?.name ?? `색상-${colorId}`;
+          alert(`${sizeLabel} / ${colorLabel} 재고를 입력해주세요.`);
           return;
         }
         if (rawStock.length === 0 && isEditMode) {
@@ -364,7 +364,7 @@ const ProductUpload = () => {
         }
         const stockNum = Number(rawStock);
         if (!Number.isInteger(stockNum) || stockNum < 0) {
-          alert('Stock must be a non-negative integer.');
+          alert('재고는 0 이상의 정수여야 합니다.');
           return;
         }
       }
@@ -386,7 +386,7 @@ const ProductUpload = () => {
     });
 
     if (productOptions.length === 0) {
-      alert('Please select options.');
+      alert('옵션을 선택해주세요.');
       return;
     }
 
@@ -431,16 +431,16 @@ const ProductUpload = () => {
 
       const result = await response.json();
       if (!response.ok || !result.ok) {
-        alert(result.message ?? (isEditMode ? 'Product update failed.' : 'Product create failed.'));
+        alert(result.message ?? (isEditMode ? '상품 수정에 실패했습니다.' : '상품 등록에 실패했습니다.'));
         return;
       }
 
       if (isEditMode) {
-        alert('Product updated.');
+        alert('상품이 수정되었습니다.');
         return;
       }
 
-      alert(`Product created (ID: ${result.productId})`);
+      alert(`상품이 등록되었습니다. (ID: ${result.productId})`);
       setName('');
       setPrice('');
       setDescription('');
@@ -458,7 +458,7 @@ const ProductUpload = () => {
       setOptionStocks({});
       setInitialOptionStocks({});
     } catch {
-      alert('Server connection failed.');
+      alert('서버 연결에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -627,7 +627,7 @@ const ProductUpload = () => {
           )}
 
           <SubmitButton type="button" onClick={handleSubmit} disabled={submitting || loadingEditData}>
-            {loadingEditData ? 'Loading...' : (submitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Product' : 'Create Product'))}
+            {loadingEditData ? '불러오는 중...' : (submitting ? (isEditMode ? '수정 중...' : '등록 중...') : (isEditMode ? '상품 수정' : '상품 등록'))}
           </SubmitButton>
         </EditorPanel>
 

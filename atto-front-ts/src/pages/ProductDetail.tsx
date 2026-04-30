@@ -99,8 +99,8 @@ const ProductDetail: React.FC = () => {
     }
   }, [selectedSize, selectedColor, variants]);
 
-  if (loading) return <LoadingMsg>Loading...</LoadingMsg>;
-  if (!product) return <LoadingMsg>Product not found.</LoadingMsg>;
+  if (loading) return <LoadingMsg>불러오는 중...</LoadingMsg>;
+  if (!product) return <LoadingMsg>상품을 찾을 수 없습니다.</LoadingMsg>;
 
   // ?대?吏 泥섎━ 濡쒖쭅
   const mainImage = product.representativeImages[0] || product.thumbnailImage;
