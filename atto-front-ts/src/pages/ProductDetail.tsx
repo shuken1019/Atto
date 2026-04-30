@@ -463,6 +463,9 @@ const ProductDetail: React.FC = () => {
             </MediaCard>
           ))}
         </DetailContentFlow>
+        {product.detailDescription && product.detailDescription !== product.description && (
+          <DetailText>{product.detailDescription}</DetailText>
+        )}
       </DetailSection>
 
       <DetailSection>
@@ -1393,4 +1396,14 @@ const KeyInfoList = styled.ul`
     font-size: 14px;
     line-height: 1.8;
   }
+`;
+
+const DetailText = styled.p`
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #ece7de;
+  font-size: 15px;
+  line-height: 2;
+  color: #444;
+  white-space: pre-wrap;
 `;

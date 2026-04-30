@@ -56,8 +56,18 @@ const sizeLabelFromId = (sizeId: number): string => {
   return `SIZE-${sizeId}`;
 };
 
-const toBaseProduct = (row: AdminProductRow): IProduct => {
+const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_text?: string }): IProduct => {
   const thumbnailImage = row.thumbnail && row.thumbnail.trim() ? row.thumbnail : fallbackImage(Number(row.productId));
+
+  let parsedDetailImages: string[] = [];
+  try {
+    const parsed = JSON.parse(String(row.detail_images ?? '[]'));
+    if (Array.isArray(parsed)) parsedDetailImages = parsed.filter((u) => typeof u === 'string' && u.length > 0);
+  } catch { /* empty */ }
+
+  const detailMedia = parsedDetailImages.length > 0
+    ? parsedDetailImages.map((url) => ({ type: 'image' as const, url }))
+    : [{ type: 'image' as const, url: thumbnailImage }];
 
   return {
     id: Number(row.productId),
@@ -66,10 +76,10 @@ const toBaseProduct = (row: AdminProductRow): IProduct => {
     category: categoryFromId(Number(row.categoryId)),
     thumbnailImage,
     representativeImages: [thumbnailImage],
-    detailImages: [thumbnailImage],
-    detailMedia: [{ type: 'image', url: thumbnailImage }],
+    detailImages: parsedDetailImages.length > 0 ? parsedDetailImages : [thumbnailImage],
+    detailMedia,
     description: String(row.description ?? ''),
-    detailDescription: String(row.description ?? ''),
+    detailDescription: String(row.detail_text ?? row.description ?? ''),
     sizeGuide: [],
     keyInfo: [],
     variants: [],

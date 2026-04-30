@@ -60,7 +60,8 @@ const ProductUpload = () => {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
   const [thumbnailPath, setThumbnailPath] = useState('');
-  const [representativeImages, setRepresentativeImages] = useState<File[]>([]);
+  const [detailImages, setDetailImages] = useState<File[]>([]);
+  const [detailText, setDetailText] = useState('');
   const [availableColors, setAvailableColors] = useState<AdminColor[]>(FALLBACK_COLORS);
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
   const [activeSizeId, setActiveSizeId] = useState<number | null>(null);
@@ -70,16 +71,16 @@ const ProductUpload = () => {
   const [loadingEditData, setLoadingEditData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const representativePreviewUrls = useMemo(
-    () => representativeImages.map((file) => URL.createObjectURL(file)),
-    [representativeImages]
+  const detailPreviewUrls = useMemo(
+    () => detailImages.map((file) => URL.createObjectURL(file)),
+    [detailImages]
   );
 
   useEffect(() => {
     return () => {
-      representativePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      detailPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [representativePreviewUrls]);
+  }, [detailPreviewUrls]);
 
   useEffect(() => {
     return () => {
@@ -208,12 +209,12 @@ const ProductUpload = () => {
     return availableColors.filter((color) => colorSet.has(color.colorId));
   }, [availableColors, selectedSizeIds, sizeColorSelections]);
 
-  const mainImage = thumbnailPreviewUrl || representativePreviewUrls[0] || '';
+  const mainImage = thumbnailPreviewUrl || detailPreviewUrls[0] || '';
   const isRealImage = mainImage.length > 0;
 
-  const handleSelectRepresentativeImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files).slice(0, 3) : [];
-    setRepresentativeImages(files);
+  const handleSelectDetailImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files).slice(0, 10) : [];
+    setDetailImages(files);
   };
 
   const handleSelectThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,6 +381,8 @@ const ProductUpload = () => {
     setSubmitting(true);
     try {
       const thumbnailDataUrl = thumbnailFile ? await fileToDataUrl(thumbnailFile) : '';
+      const detailImageDataUrls = await Promise.all(detailImages.map((f) => fileToDataUrl(f)));
+      const detailImageNames = detailImages.map((f) => f.name);
       const endpoint = isEditMode
         ? `${API_BASE_URL}/api/admin/products/${productId}`
         : `${API_BASE_URL}/api/admin/products`;
@@ -396,6 +399,9 @@ const ProductUpload = () => {
           thumbnail: thumbnailPath,
           thumbnailDataUrl,
           thumbnailName: thumbnailFile?.name ?? '',
+          detailImageDataUrls,
+          detailImageNames,
+          detailText,
           productColors,
           productOptions,
         }),
@@ -422,7 +428,8 @@ const ProductUpload = () => {
         URL.revokeObjectURL(thumbnailPreviewUrl);
       }
       setThumbnailPreviewUrl('');
-      setRepresentativeImages([]);
+      setDetailImages([]);
+      setDetailText('');
       setSelectedSizeIds([]);
       setActiveSizeId(null);
       setSizeColorSelections({});
@@ -490,9 +497,38 @@ const ProductUpload = () => {
           </Field>
 
           <Field>
-            <Label htmlFor="representative-images">대표 이미지 (최대 3장, 미리보기 전용)</Label>
-            <UploadButton htmlFor="representative-images">대표 이미지 선택</UploadButton>
-            <HiddenFileInput id="representative-images" type="file" accept="image/*" multiple onChange={handleSelectRepresentativeImages} />
+            <Label htmlFor="detail-images">상세 이미지 (최대 10장)</Label>
+            <UploadButton htmlFor="detail-images">상세 이미지 선택</UploadButton>
+            <HiddenFileInput id="detail-images" type="file" accept="image/*" multiple onChange={handleSelectDetailImages} />
+            {detailImages.length > 0 && (
+              <DetailImageGrid>
+                {detailImages.map((file, idx) => (
+                  <DetailThumb key={idx}>
+                    <img src={detailPreviewUrls[idx]} alt={`detail-${idx}`} />
+                    <RemoveImageButton
+                      type="button"
+                      onClick={() => setDetailImages((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      ×
+                    </RemoveImageButton>
+                  </DetailThumb>
+                ))}
+              </DetailImageGrid>
+            )}
+            {detailImages.length > 0 && (
+              <ThumbnailMeta>{detailImages.length}장 선택됨</ThumbnailMeta>
+            )}
+          </Field>
+
+          <Field>
+            <Label htmlFor="detail-text">이미지 하단 텍스트</Label>
+            <TextArea
+              id="detail-text"
+              rows={5}
+              value={detailText}
+              onChange={(e) => setDetailText(e.target.value)}
+              placeholder="상세 이미지 아래에 표시될 텍스트를 입력해주세요"
+            />
           </Field>
 
           <Field>
@@ -588,6 +624,18 @@ const ProductUpload = () => {
                     <ProductImageSVG type={category} />
                   )}
                 </ImageWrapper>
+                {detailPreviewUrls.length > 0 && (
+                  <PreviewDetailGrid>
+                    {detailPreviewUrls.map((url, idx) => (
+                      <PreviewDetailThumb key={idx}>
+                        <img src={url} alt={`detail-${idx}`} />
+                      </PreviewDetailThumb>
+                    ))}
+                  </PreviewDetailGrid>
+                )}
+                {detailText && (
+                  <DetailTextPreview>{detailText}</DetailTextPreview>
+                )}
               </ImageSection>
 
               <InfoSection>
@@ -921,6 +969,72 @@ const OptionLabel = styled.p`
   font-weight: 600;
   margin-bottom: 12px;
   color: #333;
+`;
+
+const DetailImageGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+`;
+
+const DetailThumb = styled.div`
+  position: relative;
+  aspect-ratio: 1;
+  background: #f5f5f5;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const RemoveImageButton = styled.button`
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+`;
+
+const PreviewDetailGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+`;
+
+const PreviewDetailThumb = styled.div`
+  aspect-ratio: 3 / 4;
+  background: #f0f0f0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const DetailTextPreview = styled.p`
+  margin-top: 24px;
+  font-size: 14px;
+  line-height: 1.9;
+  color: #444;
+  white-space: pre-wrap;
 `;
 
 

@@ -660,6 +660,41 @@ const saveThumbnailFromDataUrl = async (thumbnailDataUrl, thumbnailName) => {
   return `${PUBLIC_BASE_URL}/uploads/${fileName}`;
 };
 
+const saveDetailImagesFromDataUrls = async (dataUrls, names) => {
+  const urls = [];
+  for (let i = 0; i < dataUrls.length; i++) {
+    const dataUrl = String(dataUrls[i] ?? "").trim();
+    const name = String(names?.[i] ?? "").trim();
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) continue;
+    const mimeType = match[1];
+    const base64Data = match[2];
+    const extension = mimeToExt(mimeType);
+    const safeNamePart = name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+    const fileName = `${Date.now()}-${safeNamePart || "detail"}-${crypto.randomUUID()}.${extension}`;
+    const key = `uploads/${fileName}`;
+    if (s3 && process.env.S3_BUCKET) {
+      await s3.send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: Buffer.from(base64Data, "base64"), ContentType: mimeType }));
+      urls.push(`${buildS3BaseUrl()}/${key}`);
+    } else {
+      const filePath = path.join(UPLOADS_DIR, fileName);
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+      await fs.writeFile(filePath, Buffer.from(base64Data, "base64"));
+      urls.push(`${PUBLIC_BASE_URL}/uploads/${fileName}`);
+    }
+  }
+  return urls;
+};
+
+const ensureProductDetailColumns = async () => {
+  try {
+    await pool.query("ALTER TABLE product ADD COLUMN IF NOT EXISTS detail_images TEXT");
+  } catch (_) {}
+  try {
+    await pool.query("ALTER TABLE product ADD COLUMN IF NOT EXISTS detail_text TEXT");
+  } catch (_) {}
+};
+
 const readBannerSettings = async () => {
   try {
     const raw = await fs.readFile(BANNER_JSON_PATH, "utf8");
@@ -1848,7 +1883,7 @@ app.get("/api/admin/products/:productId", async (req, res) => {
 
   try {
     const [products] = await pool.query(
-      "SELECT productId, name, description, price, categoryId, status, thumbnail, created_at, isLive FROM product WHERE productId = ? LIMIT 1",
+      "SELECT productId, name, description, price, categoryId, status, thumbnail, detail_images, detail_text, created_at, isLive FROM product WHERE productId = ? LIMIT 1",
       [productId]
     );
     if (!Array.isArray(products) || products.length === 0) {
@@ -1886,6 +1921,9 @@ app.post("/api/admin/products", async (req, res) => {
     thumbnail,
     thumbnailDataUrl,
     thumbnailName,
+    detailImageDataUrls,
+    detailImageNames,
+    detailText,
     isLive,
     productColors,
     productOptions,
@@ -1927,6 +1965,12 @@ app.post("/api/admin/products", async (req, res) => {
       return res.status(400).json({ ok: false, message: "thumbnail required" });
     }
 
+    const detailImageUrls = Array.isArray(detailImageDataUrls) && detailImageDataUrls.length > 0
+      ? await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? [])
+      : [];
+    const finalDetailImages = JSON.stringify(detailImageUrls);
+    const finalDetailText = String(detailText ?? "").trim();
+
     const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
     if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {
       await conn.rollback();
@@ -1934,8 +1978,8 @@ app.post("/api/admin/products", async (req, res) => {
     }
 
     const [insertProductResult] = await conn.query(
-      "INSERT INTO product (name, description, price, categoryId, status, thumbnail, isLive, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, safeIsLive]
+      "INSERT INTO product (name, description, price, categoryId, status, thumbnail, detail_images, detail_text, isLive, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, finalDetailImages, finalDetailText, safeIsLive]
     );
     const newProductId = Number(insertProductResult.insertId);
 
@@ -2013,6 +2057,9 @@ app.put("/api/admin/products/:productId", async (req, res) => {
     thumbnail,
     thumbnailDataUrl,
     thumbnailName,
+    detailImageDataUrls,
+    detailImageNames,
+    detailText,
     isLive,
     productColors,
     productOptions,
@@ -2049,7 +2096,7 @@ app.put("/api/admin/products/:productId", async (req, res) => {
     await conn.beginTransaction();
 
     const [existingProducts] = await conn.query(
-      "SELECT productId, thumbnail, COALESCE(isLive, 0) AS isLive FROM product WHERE productId = ? LIMIT 1",
+      "SELECT productId, thumbnail, detail_images, detail_text, COALESCE(isLive, 0) AS isLive FROM product WHERE productId = ? LIMIT 1",
       [productId]
     );
     if (!Array.isArray(existingProducts) || existingProducts.length === 0) {
@@ -2067,6 +2114,15 @@ app.put("/api/admin/products/:productId", async (req, res) => {
       return res.status(400).json({ ok: false, message: "thumbnail required" });
     }
 
+    let finalDetailImages;
+    if (Array.isArray(detailImageDataUrls) && detailImageDataUrls.length > 0) {
+      const uploaded = await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? []);
+      finalDetailImages = JSON.stringify(uploaded);
+    } else {
+      finalDetailImages = String(existing.detail_images ?? "[]");
+    }
+    const finalDetailText = detailText !== undefined ? String(detailText ?? "").trim() : String(existing.detail_text ?? "");
+
     const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
     if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {
       await conn.rollback();
@@ -2083,8 +2139,8 @@ app.put("/api/admin/products/:productId", async (req, res) => {
           : 0;
 
     await conn.query(
-      "UPDATE product SET name = ?, description = ?, price = ?, categoryId = ?, status = ?, thumbnail = ?, isLive = ? WHERE productId = ?",
-      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, safeIsLive, productId]
+      "UPDATE product SET name = ?, description = ?, price = ?, categoryId = ?, status = ?, thumbnail = ?, detail_images = ?, detail_text = ?, isLive = ? WHERE productId = ?",
+      [safeName, safeDescription, safePrice, resolvedCategoryId, safeStatus, finalThumbnail, finalDetailImages, finalDetailText, safeIsLive, productId]
     );
 
     await conn.query("DELETE FROM product_option WHERE productId = ?", [productId]);
@@ -2456,6 +2512,9 @@ autoAdvancePreparing().catch((error) => {
 
 ensureCartTable().catch((error) => {
   console.error("ensureCartTable failed:", error);
+});
+ensureProductDetailColumns().catch((error) => {
+  console.error("ensureProductDetailColumns failed:", error);
 });
 
 setInterval(() => {
