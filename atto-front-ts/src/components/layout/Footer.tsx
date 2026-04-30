@@ -38,13 +38,16 @@ const Footer: React.FC = () => {
       <FooterInner>
         <FooterSection>
           <h3>ATTO</h3>
-          <p>Natural comfort for your daily life.</p>
+          <p>사업자 등록번호 879-46-00149</p>
+          <p>대표:이영주</p>
+          <p>고객센터 번호: 010-2531-8341</p>
+          <p>주소:서울특별시 강도구 풍성로54번길 47, 1층</p>
         </FooterSection>
         <FooterSection>
           <h4>Help</h4>
           <ul>
-            <li><a href="/contact">Contact Us</a></li>
-            <li><a href="/shipping">Shipping & Returns</a></li>
+            <li><a href="/contact">이용약관</a></li>
+            <li><a href="/shipping">개인정보 보호정책</a></li>
           </ul>
         </FooterSection>
         <FooterSection>
