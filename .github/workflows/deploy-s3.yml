@@ -63,3 +63,11 @@ jobs:
       - name: Invalidate CloudFront (optional)
         if: ${{ env.CLOUDFRONT_ID != '' }}
         run: aws cloudfront create-invalidation --distribution-id "${{ env.CLOUDFRONT_ID }}" --paths "/*"
+      - name: Build .env.production
+        run: |
+          test -n "${{ vars.VITE_API_URL }}"
+          test -n "${{ vars.VITE_KAKAO_JS_KEY }}"
+          test -n "${{ vars.VITE_KAKAO_REST_API_KEY }}"
+          echo "VITE_API_URL=${{ vars.VITE_API_URL }}" > .env.production
+          echo "VITE_KAKAO_JS_KEY=${{ vars.VITE_KAKAO_JS_KEY }}" >> .env.production
+          echo "VITE_KAKAO_REST_API_KEY=${{ vars.VITE_KAKAO_REST_API_KEY }}" >> .env.production
