@@ -6,7 +6,7 @@ import styled from 'styled-components';
 const SOCIAL_LINKS = {
   instagram: 'https://instagram.com',
   kakaoOpenChat: 'https://open.kakao.com',
-  naver: 'https://www.naver.com',
+  naver: 'https://map.naver.com/p/entry/place/1855456358?lng=127.1332733&lat=37.5274780&placePath=/home?fromPanelNum=1&additionalHeight=76&timestamp=202604302100&locale=ko&svcName=map_pcv5&additionalHeight=76&timestamp=202604302100&locale=ko&svcName=map_pcv5&fromPanelNum=1&entry=pll&searchType=place&c=15.00,0,0,0,dh',
 };
 
 const InstagramIcon = () => (
