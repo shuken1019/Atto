@@ -502,7 +502,7 @@ const ProductUpload = () => {
             <HiddenFileInput id="detail-images" type="file" accept="image/*" multiple onChange={handleSelectDetailImages} />
             {detailImages.length > 0 && (
               <DetailImageGrid>
-                {detailImages.map((file, idx) => (
+                {detailImages.map((_file, idx) => (
                   <DetailThumb key={idx}>
                     <img src={detailPreviewUrls[idx]} alt={`detail-${idx}`} />
                     <RemoveImageButton
