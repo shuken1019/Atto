@@ -35,6 +35,8 @@ import OrderCreatedDetail from './pages/admin/OrderCreatedDetail';
 import BannerManagement from './pages/admin/BannerManagement';
 import SalesManagement from './pages/admin/SalesManagement';
 import CheckoutPreview from './pages/CheckoutPreview';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 const isAdminUser = () => {
   const rawAuth = localStorage.getItem('atto_auth');
@@ -149,6 +151,8 @@ const App: React.FC = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/find-account" element={<FindAccount />} />
+          <Route path="/contact" element={<Terms />} />
+          <Route path="/shipping" element={<Privacy />} />
           
           <Route
             path="/mypage"
