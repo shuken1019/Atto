@@ -452,20 +452,20 @@ const ProductDetail: React.FC = () => {
       <DetailSection>
         <DetailContentFlow>
           {product.detailMedia.map((media, index) => (
-            <MediaCard key={`${media.url}-${index}`}>
-              {media.type === 'video' ? (
-                <video controls playsInline preload="metadata">
-                  <source src={media.url} />
-                </video>
-              ) : (
-                <img src={media.url} alt={`${product.name} 상세 이미지 ${index + 1}`} />
-              )}
-            </MediaCard>
+            <React.Fragment key={`${media.url}-${index}`}>
+              <MediaCard>
+                {media.type === 'video' ? (
+                  <video controls playsInline preload="metadata">
+                    <source src={media.url} />
+                  </video>
+                ) : (
+                  <img src={media.url} alt={`${product.name} 상세 이미지 ${index + 1}`} />
+                )}
+              </MediaCard>
+              {media.text && <DetailText>{media.text}</DetailText>}
+            </React.Fragment>
           ))}
         </DetailContentFlow>
-        {product.detailDescription && product.detailDescription !== product.description && (
-          <DetailText>{product.detailDescription}</DetailText>
-        )}
       </DetailSection>
 
       <DetailSection>

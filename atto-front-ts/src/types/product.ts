@@ -24,6 +24,7 @@ export interface IProduct {
   detailMedia: Array<{
     type: 'image' | 'video';
     url: string;
+    text?: string;
   }>;
   description: string;
   detailDescription: string;

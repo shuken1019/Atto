@@ -660,11 +660,12 @@ const saveThumbnailFromDataUrl = async (thumbnailDataUrl, thumbnailName) => {
   return `${PUBLIC_BASE_URL}/uploads/${fileName}`;
 };
 
-const saveDetailImagesFromDataUrls = async (dataUrls, names) => {
-  const urls = [];
+const saveDetailImagesFromDataUrls = async (dataUrls, names, texts) => {
+  const blocks = [];
   for (let i = 0; i < dataUrls.length; i++) {
     const dataUrl = String(dataUrls[i] ?? "").trim();
     const name = String(names?.[i] ?? "").trim();
+    const text = String(texts?.[i] ?? "").trim();
     const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) continue;
     const mimeType = match[1];
@@ -673,17 +674,19 @@ const saveDetailImagesFromDataUrls = async (dataUrls, names) => {
     const safeNamePart = name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
     const fileName = `${Date.now()}-${safeNamePart || "detail"}-${crypto.randomUUID()}.${extension}`;
     const key = `uploads/${fileName}`;
+    let url;
     if (s3 && process.env.S3_BUCKET) {
       await s3.send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: Buffer.from(base64Data, "base64"), ContentType: mimeType }));
-      urls.push(`${buildS3BaseUrl()}/${key}`);
+      url = `${buildS3BaseUrl()}/${key}`;
     } else {
       const filePath = path.join(UPLOADS_DIR, fileName);
       await fs.mkdir(UPLOADS_DIR, { recursive: true });
       await fs.writeFile(filePath, Buffer.from(base64Data, "base64"));
-      urls.push(`${PUBLIC_BASE_URL}/uploads/${fileName}`);
+      url = `${PUBLIC_BASE_URL}/uploads/${fileName}`;
     }
+    blocks.push({ url, text });
   }
-  return urls;
+  return blocks;
 };
 
 const ensureProductDetailColumns = async () => {
@@ -1923,7 +1926,7 @@ app.post("/api/admin/products", async (req, res) => {
     thumbnailName,
     detailImageDataUrls,
     detailImageNames,
-    detailText,
+    detailImageTexts,
     isLive,
     productColors,
     productOptions,
@@ -1965,11 +1968,11 @@ app.post("/api/admin/products", async (req, res) => {
       return res.status(400).json({ ok: false, message: "thumbnail required" });
     }
 
-    const detailImageUrls = Array.isArray(detailImageDataUrls) && detailImageDataUrls.length > 0
-      ? await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? [])
+    const detailBlocks = Array.isArray(detailImageDataUrls) && detailImageDataUrls.length > 0
+      ? await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? [], detailImageTexts ?? [])
       : [];
-    const finalDetailImages = JSON.stringify(detailImageUrls);
-    const finalDetailText = String(detailText ?? "").trim();
+    const finalDetailImages = JSON.stringify(detailBlocks);
+    const finalDetailText = "";
 
     const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
     if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {
@@ -2059,7 +2062,7 @@ app.put("/api/admin/products/:productId", async (req, res) => {
     thumbnailName,
     detailImageDataUrls,
     detailImageNames,
-    detailText,
+    detailImageTexts,
     isLive,
     productColors,
     productOptions,
@@ -2116,12 +2119,12 @@ app.put("/api/admin/products/:productId", async (req, res) => {
 
     let finalDetailImages;
     if (Array.isArray(detailImageDataUrls) && detailImageDataUrls.length > 0) {
-      const uploaded = await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? []);
+      const uploaded = await saveDetailImagesFromDataUrls(detailImageDataUrls, detailImageNames ?? [], detailImageTexts ?? []);
       finalDetailImages = JSON.stringify(uploaded);
     } else {
       finalDetailImages = String(existing.detail_images ?? "[]");
     }
-    const finalDetailText = detailText !== undefined ? String(detailText ?? "").trim() : String(existing.detail_text ?? "");
+    const finalDetailText = "";
 
     const resolvedCategoryId = await resolveCategoryId(conn, categoryId ?? category);
     if (!Number.isInteger(resolvedCategoryId) || resolvedCategoryId <= 0) {

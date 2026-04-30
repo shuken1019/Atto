@@ -59,15 +59,24 @@ const sizeLabelFromId = (sizeId: number): string => {
 const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_text?: string }): IProduct => {
   const thumbnailImage = row.thumbnail && row.thumbnail.trim() ? row.thumbnail : fallbackImage(Number(row.productId));
 
-  let parsedDetailImages: string[] = [];
+  type DetailBlock = { url: string; text?: string };
+  let detailBlocks: DetailBlock[] = [];
   try {
     const parsed = JSON.parse(String(row.detail_images ?? '[]'));
-    if (Array.isArray(parsed)) parsedDetailImages = parsed.filter((u) => typeof u === 'string' && u.length > 0);
+    if (Array.isArray(parsed)) {
+      detailBlocks = parsed
+        .map((item) => {
+          if (typeof item === 'string') return { url: item, text: '' };
+          if (item && typeof item.url === 'string') return { url: item.url, text: String(item.text ?? '') };
+          return null;
+        })
+        .filter((b): b is DetailBlock => b !== null && b.url.length > 0);
+    }
   } catch { /* empty */ }
 
-  const detailMedia = parsedDetailImages.length > 0
-    ? parsedDetailImages.map((url) => ({ type: 'image' as const, url }))
-    : [{ type: 'image' as const, url: thumbnailImage }];
+  const detailMedia = detailBlocks.length > 0
+    ? detailBlocks.map((b) => ({ type: 'image' as const, url: b.url, text: b.text }))
+    : [{ type: 'image' as const, url: thumbnailImage, text: '' }];
 
   return {
     id: Number(row.productId),
@@ -76,10 +85,10 @@ const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_t
     category: categoryFromId(Number(row.categoryId)),
     thumbnailImage,
     representativeImages: [thumbnailImage],
-    detailImages: parsedDetailImages.length > 0 ? parsedDetailImages : [thumbnailImage],
+    detailImages: detailBlocks.length > 0 ? detailBlocks.map((b) => b.url) : [thumbnailImage],
     detailMedia,
     description: String(row.description ?? ''),
-    detailDescription: String(row.detail_text ?? row.description ?? ''),
+    detailDescription: '',
     sizeGuide: [],
     keyInfo: [],
     variants: [],

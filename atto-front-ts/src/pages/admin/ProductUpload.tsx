@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import type { CategoryType } from '../../types/product';
 import { ProductImageSVG } from '../../components/common/Placeholders';
@@ -60,8 +60,9 @@ const ProductUpload = () => {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
   const [thumbnailPath, setThumbnailPath] = useState('');
-  const [detailImages, setDetailImages] = useState<File[]>([]);
-  const [detailText, setDetailText] = useState('');
+  type DetailBlock = { file: File; previewUrl: string; text: string };
+  const [detailBlocks, setDetailBlocks] = useState<DetailBlock[]>([]);
+  const detailBlockUrlsRef = useRef<string[]>([]);
   const [availableColors, setAvailableColors] = useState<AdminColor[]>(FALLBACK_COLORS);
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
   const [activeSizeId, setActiveSizeId] = useState<number | null>(null);
@@ -71,16 +72,35 @@ const ProductUpload = () => {
   const [loadingEditData, setLoadingEditData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const detailPreviewUrls = useMemo(
-    () => detailImages.map((file) => URL.createObjectURL(file)),
-    [detailImages]
-  );
-
   useEffect(() => {
     return () => {
-      detailPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      detailBlockUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [detailPreviewUrls]);
+  }, []);
+
+  const addDetailBlocks = useCallback((files: File[]) => {
+    const newBlocks = files.map((file) => {
+      const previewUrl = URL.createObjectURL(file);
+      detailBlockUrlsRef.current.push(previewUrl);
+      return { file, previewUrl, text: '' };
+    });
+    setDetailBlocks((prev) => [...prev, ...newBlocks].slice(0, 10));
+  }, []);
+
+  const removeDetailBlock = useCallback((idx: number) => {
+    setDetailBlocks((prev) => {
+      const block = prev[idx];
+      if (block) {
+        URL.revokeObjectURL(block.previewUrl);
+        detailBlockUrlsRef.current = detailBlockUrlsRef.current.filter((u) => u !== block.previewUrl);
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
+  }, []);
+
+  const updateDetailBlockText = useCallback((idx: number, text: string) => {
+    setDetailBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, text } : b)));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -209,12 +229,13 @@ const ProductUpload = () => {
     return availableColors.filter((color) => colorSet.has(color.colorId));
   }, [availableColors, selectedSizeIds, sizeColorSelections]);
 
-  const mainImage = thumbnailPreviewUrl || detailPreviewUrls[0] || '';
+  const mainImage = thumbnailPreviewUrl || detailBlocks[0]?.previewUrl || '';
   const isRealImage = mainImage.length > 0;
 
   const handleSelectDetailImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files).slice(0, 10) : [];
-    setDetailImages(files);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    addDetailBlocks(files);
+    e.target.value = '';
   };
 
   const handleSelectThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,8 +402,9 @@ const ProductUpload = () => {
     setSubmitting(true);
     try {
       const thumbnailDataUrl = thumbnailFile ? await fileToDataUrl(thumbnailFile) : '';
-      const detailImageDataUrls = await Promise.all(detailImages.map((f) => fileToDataUrl(f)));
-      const detailImageNames = detailImages.map((f) => f.name);
+      const detailImageDataUrls = await Promise.all(detailBlocks.map((b) => fileToDataUrl(b.file)));
+      const detailImageNames = detailBlocks.map((b) => b.file.name);
+      const detailImageTexts = detailBlocks.map((b) => b.text);
       const endpoint = isEditMode
         ? `${API_BASE_URL}/api/admin/products/${productId}`
         : `${API_BASE_URL}/api/admin/products`;
@@ -401,7 +423,7 @@ const ProductUpload = () => {
           thumbnailName: thumbnailFile?.name ?? '',
           detailImageDataUrls,
           detailImageNames,
-          detailText,
+          detailImageTexts,
           productColors,
           productOptions,
         }),
@@ -428,8 +450,8 @@ const ProductUpload = () => {
         URL.revokeObjectURL(thumbnailPreviewUrl);
       }
       setThumbnailPreviewUrl('');
-      setDetailImages([]);
-      setDetailText('');
+      detailBlocks.forEach((b) => URL.revokeObjectURL(b.previewUrl));
+      setDetailBlocks([]);
       setSelectedSizeIds([]);
       setActiveSizeId(null);
       setSizeColorSelections({});
@@ -497,38 +519,34 @@ const ProductUpload = () => {
           </Field>
 
           <Field>
-            <Label htmlFor="detail-images">상세 이미지 (최대 10장)</Label>
-            <UploadButton htmlFor="detail-images">상세 이미지 선택</UploadButton>
-            <HiddenFileInput id="detail-images" type="file" accept="image/*" multiple onChange={handleSelectDetailImages} />
-            {detailImages.length > 0 && (
-              <DetailImageGrid>
-                {detailImages.map((_file, idx) => (
-                  <DetailThumb key={idx}>
-                    <img src={detailPreviewUrls[idx]} alt={`detail-${idx}`} />
-                    <RemoveImageButton
-                      type="button"
-                      onClick={() => setDetailImages((prev) => prev.filter((_, i) => i !== idx))}
-                    >
-                      ×
-                    </RemoveImageButton>
-                  </DetailThumb>
-                ))}
-              </DetailImageGrid>
+            <Label>상세 이미지 (최대 10장)</Label>
+            {detailBlocks.map((block, idx) => (
+              <DetailBlockEditor key={idx}>
+                <DetailBlockImageRow>
+                  <DetailBlockThumb>
+                    <img src={block.previewUrl} alt={`detail-${idx}`} />
+                  </DetailBlockThumb>
+                  <RemoveImageButton type="button" onClick={() => removeDetailBlock(idx)}>×</RemoveImageButton>
+                </DetailBlockImageRow>
+                <TextArea
+                  rows={3}
+                  value={block.text}
+                  onChange={(e) => updateDetailBlockText(idx, e.target.value)}
+                  placeholder="이미지 아래에 표시될 텍스트 (선택)"
+                />
+              </DetailBlockEditor>
+            ))}
+            {detailBlocks.length < 10 && (
+              <>
+                <UploadButton htmlFor="detail-images">
+                  {detailBlocks.length === 0 ? '상세 이미지 추가' : '+ 이미지 추가'}
+                </UploadButton>
+                <HiddenFileInput id="detail-images" type="file" accept="image/*" multiple onChange={handleSelectDetailImages} />
+              </>
             )}
-            {detailImages.length > 0 && (
-              <ThumbnailMeta>{detailImages.length}장 선택됨</ThumbnailMeta>
+            {detailBlocks.length > 0 && (
+              <ThumbnailMeta>{detailBlocks.length}장 선택됨</ThumbnailMeta>
             )}
-          </Field>
-
-          <Field>
-            <Label htmlFor="detail-text">이미지 하단 텍스트</Label>
-            <TextArea
-              id="detail-text"
-              rows={5}
-              value={detailText}
-              onChange={(e) => setDetailText(e.target.value)}
-              placeholder="상세 이미지 아래에 표시될 텍스트를 입력해주세요"
-            />
           </Field>
 
           <Field>
@@ -624,17 +642,17 @@ const ProductUpload = () => {
                     <ProductImageSVG type={category} />
                   )}
                 </ImageWrapper>
-                {detailPreviewUrls.length > 0 && (
-                  <PreviewDetailGrid>
-                    {detailPreviewUrls.map((url, idx) => (
-                      <PreviewDetailThumb key={idx}>
-                        <img src={url} alt={`detail-${idx}`} />
-                      </PreviewDetailThumb>
+                {detailBlocks.length > 0 && (
+                  <PreviewDetailFlow>
+                    {detailBlocks.map((block, idx) => (
+                      <PreviewDetailBlock key={idx}>
+                        <PreviewDetailThumb>
+                          <img src={block.previewUrl} alt={`detail-${idx}`} />
+                        </PreviewDetailThumb>
+                        {block.text && <DetailTextPreview>{block.text}</DetailTextPreview>}
+                      </PreviewDetailBlock>
                     ))}
-                  </PreviewDetailGrid>
-                )}
-                {detailText && (
-                  <DetailTextPreview>{detailText}</DetailTextPreview>
+                  </PreviewDetailFlow>
                 )}
               </ImageSection>
 
@@ -971,17 +989,23 @@ const OptionLabel = styled.p`
   color: #333;
 `;
 
-const DetailImageGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  margin-top: 10px;
+const DetailBlockEditor = styled.div`
+  margin-top: 12px;
+  border: 1px solid #e8e4dc;
+  padding: 10px;
+  background: #fafaf8;
 `;
 
-const DetailThumb = styled.div`
+const DetailBlockImageRow = styled.div`
   position: relative;
-  aspect-ratio: 1;
-  background: #f5f5f5;
+  display: inline-block;
+  margin-bottom: 8px;
+`;
+
+const DetailBlockThumb = styled.div`
+  width: 80px;
+  height: 80px;
+  background: #f0f0f0;
   overflow: hidden;
 
   img {
@@ -993,15 +1017,15 @@ const DetailThumb = styled.div`
 
 const RemoveImageButton = styled.button`
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
-  background: rgba(0, 0, 0, 0.55);
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  background: #333;
   color: #fff;
   border: none;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -1010,22 +1034,28 @@ const RemoveImageButton = styled.button`
   padding: 0;
 `;
 
-const PreviewDetailGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+const PreviewDetailFlow = styled.div`
   margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+`;
+
+const PreviewDetailBlock = styled.div`
+  display: flex;
+  flex-direction: column;
 `;
 
 const PreviewDetailThumb = styled.div`
-  aspect-ratio: 3 / 4;
+  width: 100%;
   background: #f0f0f0;
   overflow: hidden;
 
   img {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
+    display: block;
+    object-fit: contain;
   }
 `;
 
