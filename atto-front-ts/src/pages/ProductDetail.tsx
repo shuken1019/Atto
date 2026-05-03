@@ -36,6 +36,7 @@ const ProductDetail: React.FC = () => {
   const [buyNowQty, setBuyNowQty] = useState(1);
   const [scrapPending, setScrapPending] = useState(false);
   const [buyNowPending] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const variants = product?.variants ?? [];
   const sizeLabelToId = (size: string): number => {
     if (size === 'S') return 1;
@@ -103,7 +104,10 @@ const ProductDetail: React.FC = () => {
   if (!product) return <LoadingMsg>상품을 찾을 수 없습니다.</LoadingMsg>;
 
   // ?대?吏 泥섎━ 濡쒖쭅
-  const mainImage = product.representativeImages[0] || product.thumbnailImage;
+  const allImages = product.representativeImages.length > 0
+    ? product.representativeImages
+    : [product.thumbnailImage].filter(Boolean);
+  const mainImage = allImages[activeImageIndex] || product.thumbnailImage;
   const isRealImage =
     mainImage &&
     mainImage.startsWith('http') &&
@@ -357,6 +361,19 @@ const ProductDetail: React.FC = () => {
               <ProductImageSVG type={product.category} />
             )}
           </ImageWrapper>
+          {allImages.length > 1 && (
+            <ThumbnailRow>
+              {allImages.map((url, idx) => (
+                <ThumbnailItem
+                  key={url}
+                  $active={idx === activeImageIndex}
+                  onClick={() => setActiveImageIndex(idx)}
+                >
+                  <img src={url} alt={`${product.name} ${idx + 1}`} />
+                </ThumbnailItem>
+              ))}
+            </ThumbnailRow>
+          )}
         </ImageSection>
 
         <InfoSection>
@@ -1406,4 +1423,32 @@ const DetailText = styled.p`
   line-height: 2;
   color: #444;
   white-space: pre-wrap;
+`;
+
+const ThumbnailRow = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+`;
+
+const ThumbnailItem = styled.div<{ $active: boolean }>`
+  width: 64px;
+  height: 64px;
+  border: 2px solid ${(props) => (props.$active ? '#111' : '#ddd')};
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  &:hover {
+    border-color: #111;
+  }
 `;
