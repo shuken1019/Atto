@@ -14,6 +14,8 @@ export type AdminProductRow = {
   categoryId: number;
   status: 'ON_SALE' | 'SOLD_OUT' | 'HIDDEN';
   thumbnail: string | null;
+  detail_images?: string | null;
+  detail_text?: string | null;
   created_at: string;
   isLive?: number | boolean;
   totalStock?: number;
@@ -56,23 +58,67 @@ const sizeLabelFromId = (sizeId: number): string => {
   return `SIZE-${sizeId}`;
 };
 
-const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_text?: string }): IProduct => {
+type DetailBlock = { url: string; text: string };
+
+const normalizeDetailBlocks = (rawDetailImages: unknown): DetailBlock[] => {
+  const appendBlock = (blocks: DetailBlock[], item: unknown) => {
+    if (typeof item === 'string') {
+      const url = item.trim();
+      if (url) blocks.push({ url, text: '' });
+      return;
+    }
+
+    if (!item || typeof item !== 'object') return;
+    const record = item as Record<string, unknown>;
+    const url = typeof record.url === 'string' ? record.url.trim() : '';
+    if (!url) return;
+    blocks.push({
+      url,
+      text: typeof record.text === 'string' ? record.text : '',
+    });
+  };
+
+  const parse = (value: unknown): unknown => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
+
+  const parsed = parse(rawDetailImages);
+  const blocks: DetailBlock[] = [];
+
+  if (Array.isArray(parsed)) {
+    parsed.forEach((item) => appendBlock(blocks, item));
+  } else {
+    appendBlock(blocks, parsed);
+  }
+
+  return blocks;
+};
+
+const uniqueImages = (urls: string[]): string[] => {
+  const seen = new Set<string>();
+  return urls.filter((url) => {
+    const safeUrl = String(url ?? '').trim();
+    if (!safeUrl || seen.has(safeUrl)) return false;
+    seen.add(safeUrl);
+    return true;
+  });
+};
+
+const toBaseProduct = (row: AdminProductRow): IProduct => {
   const thumbnailImage = row.thumbnail && row.thumbnail.trim() ? row.thumbnail : fallbackImage(Number(row.productId));
 
-  type DetailBlock = { url: string; text: string };
-  let detailBlocks: DetailBlock[] = [];
-  try {
-    const parsed = JSON.parse(String(row.detail_images ?? '[]'));
-    if (Array.isArray(parsed)) {
-      for (const item of parsed) {
-        if (typeof item === 'string' && item.length > 0) {
-          detailBlocks.push({ url: item, text: '' });
-        } else if (item && typeof item.url === 'string' && item.url.length > 0) {
-          detailBlocks.push({ url: item.url, text: String(item.text ?? '') });
-        }
-      }
-    }
-  } catch { /* empty */ }
+  const detailBlocks = normalizeDetailBlocks(row.detail_images);
+  const galleryImages = uniqueImages([
+    thumbnailImage,
+    ...detailBlocks.map((block) => block.url),
+  ]);
 
   const detailMedia = detailBlocks.length > 0
     ? detailBlocks.map((b) => ({ type: 'image' as const, url: b.url, text: b.text }))
@@ -84,7 +130,7 @@ const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_t
     price: Number(row.price ?? 0),
     category: categoryFromId(Number(row.categoryId)),
     thumbnailImage,
-    representativeImages: detailBlocks.length > 0 ? detailBlocks.map((b) => b.url) : [thumbnailImage],
+    representativeImages: galleryImages,
     detailImages: detailBlocks.length > 0 ? detailBlocks.map((b) => b.url) : [thumbnailImage],
     detailMedia,
     description: String(row.description ?? ''),

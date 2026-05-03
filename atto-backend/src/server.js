@@ -1831,7 +1831,7 @@ app.get("/api/admin/dashboard", async (_req, res) => {
 app.get("/api/admin/products", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.created_at, p.isLive, " +
+      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.detail_images, p.detail_text, p.created_at, p.isLive, " +
         "COALESCE(SUM(pc.stock), 0) AS totalStock " +
         "FROM product p " +
         "LEFT JOIN product_color pc ON pc.productId = p.productId " +
