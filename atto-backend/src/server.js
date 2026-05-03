@@ -690,12 +690,19 @@ const saveDetailImagesFromDataUrls = async (dataUrls, names, texts) => {
 };
 
 const ensureProductDetailColumns = async () => {
-  try {
-    await pool.query("ALTER TABLE product ADD COLUMN IF NOT EXISTS detail_images TEXT");
-  } catch (_) {}
-  try {
-    await pool.query("ALTER TABLE product ADD COLUMN IF NOT EXISTS detail_text TEXT");
-  } catch (_) {}
+  const [columns] = await pool.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS " +
+      "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product' " +
+      "AND COLUMN_NAME IN ('detail_images', 'detail_text')"
+  );
+  const columnNames = new Set((Array.isArray(columns) ? columns : []).map((row) => String(row.COLUMN_NAME)));
+
+  if (!columnNames.has("detail_images")) {
+    await pool.query("ALTER TABLE product ADD COLUMN detail_images TEXT");
+  }
+  if (!columnNames.has("detail_text")) {
+    await pool.query("ALTER TABLE product ADD COLUMN detail_text TEXT");
+  }
 };
 
 const readBannerSettings = async () => {
