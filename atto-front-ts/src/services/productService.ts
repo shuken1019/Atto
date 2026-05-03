@@ -84,7 +84,7 @@ const toBaseProduct = (row: AdminProductRow & { detail_images?: string; detail_t
     price: Number(row.price ?? 0),
     category: categoryFromId(Number(row.categoryId)),
     thumbnailImage,
-    representativeImages: [thumbnailImage],
+    representativeImages: detailBlocks.length > 0 ? detailBlocks.map((b) => b.url) : [thumbnailImage],
     detailImages: detailBlocks.length > 0 ? detailBlocks.map((b) => b.url) : [thumbnailImage],
     detailMedia,
     description: String(row.description ?? ''),
