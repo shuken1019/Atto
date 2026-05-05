@@ -32,6 +32,31 @@ const FALLBACK_COLORS: AdminColor[] = [
   { colorId: 3, name: 'White', code: '#ffffff' },
   { colorId: 4, name: 'Gray', code: '#a5a5a5' },
   { colorId: 5, name: 'Navy', code: '#1f2c56' },
+  { colorId: 6, name: 'Charcoal', code: '#3d3d3d' },
+  { colorId: 7, name: 'Light Gray', code: '#d8d8d8' },
+  { colorId: 8, name: 'Cream', code: '#f7efd9' },
+  { colorId: 9, name: 'Beige', code: '#d8c3a5' },
+  { colorId: 10, name: 'Oatmeal', code: '#c9bba6' },
+  { colorId: 11, name: 'Camel', code: '#b7834f' },
+  { colorId: 12, name: 'Brown', code: '#74513b' },
+  { colorId: 13, name: 'Chocolate', code: '#4a2f25' },
+  { colorId: 14, name: 'Blue', code: '#3b73c8' },
+  { colorId: 15, name: 'Sky Blue', code: '#9ec7e8' },
+  { colorId: 16, name: 'Denim', code: '#466b8f' },
+  { colorId: 17, name: 'Green', code: '#2f7d53' },
+  { colorId: 18, name: 'Khaki', code: '#8b8756' },
+  { colorId: 19, name: 'Olive', code: '#5f6b3d' },
+  { colorId: 20, name: 'Mint', code: '#a8d8c4' },
+  { colorId: 21, name: 'Yellow', code: '#f0cf5a' },
+  { colorId: 22, name: 'Orange', code: '#df8b3a' },
+  { colorId: 23, name: 'Red', code: '#c9473f' },
+  { colorId: 24, name: 'Burgundy', code: '#7b2638' },
+  { colorId: 25, name: 'Pink', code: '#e8a7b8' },
+  { colorId: 26, name: 'Rose', code: '#c98089' },
+  { colorId: 27, name: 'Lavender', code: '#b9a7d8' },
+  { colorId: 28, name: 'Purple', code: '#76559d' },
+  { colorId: 29, name: 'Silver', code: '#c9cbd0' },
+  { colorId: 30, name: 'Gold', code: '#c8a64d' },
 ];
 
 const AVAILABLE_SIZES: AdminSize[] = [
@@ -1066,5 +1091,4 @@ const DetailTextPreview = styled.p`
   color: #444;
   white-space: pre-wrap;
 `;
-
 

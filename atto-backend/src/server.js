@@ -455,6 +455,39 @@ const buildS3BaseUrl = () =>
   process.env.S3_BASE_URL ||
   `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION || "ap-northeast-2"}.amazonaws.com`;
 
+const DEFAULT_COLORS = [
+  { colorId: 1, name: "Black", code: "#222222" },
+  { colorId: 2, name: "Ivory", code: "#efe9de" },
+  { colorId: 3, name: "White", code: "#ffffff" },
+  { colorId: 4, name: "Gray", code: "#a5a5a5" },
+  { colorId: 5, name: "Navy", code: "#1f2c56" },
+  { colorId: 6, name: "Charcoal", code: "#3d3d3d" },
+  { colorId: 7, name: "Light Gray", code: "#d8d8d8" },
+  { colorId: 8, name: "Cream", code: "#f7efd9" },
+  { colorId: 9, name: "Beige", code: "#d8c3a5" },
+  { colorId: 10, name: "Oatmeal", code: "#c9bba6" },
+  { colorId: 11, name: "Camel", code: "#b7834f" },
+  { colorId: 12, name: "Brown", code: "#74513b" },
+  { colorId: 13, name: "Chocolate", code: "#4a2f25" },
+  { colorId: 14, name: "Blue", code: "#3b73c8" },
+  { colorId: 15, name: "Sky Blue", code: "#9ec7e8" },
+  { colorId: 16, name: "Denim", code: "#466b8f" },
+  { colorId: 17, name: "Green", code: "#2f7d53" },
+  { colorId: 18, name: "Khaki", code: "#8b8756" },
+  { colorId: 19, name: "Olive", code: "#5f6b3d" },
+  { colorId: 20, name: "Mint", code: "#a8d8c4" },
+  { colorId: 21, name: "Yellow", code: "#f0cf5a" },
+  { colorId: 22, name: "Orange", code: "#df8b3a" },
+  { colorId: 23, name: "Red", code: "#c9473f" },
+  { colorId: 24, name: "Burgundy", code: "#7b2638" },
+  { colorId: 25, name: "Pink", code: "#e8a7b8" },
+  { colorId: 26, name: "Rose", code: "#c98089" },
+  { colorId: 27, name: "Lavender", code: "#b9a7d8" },
+  { colorId: 28, name: "Purple", code: "#76559d" },
+  { colorId: 29, name: "Silver", code: "#c9cbd0" },
+  { colorId: 30, name: "Gold", code: "#c8a64d" },
+];
+
 const DEFAULT_BANNER = {
   mainText: "ESSENTIALS",
   seasonText: "SPRING / SUMMER 2024",
@@ -703,6 +736,27 @@ const ensureProductDetailColumns = async () => {
   if (!columnNames.has("detail_text")) {
     await pool.query("ALTER TABLE product ADD COLUMN detail_text TEXT");
   }
+};
+
+const ensureColorPalette = async () => {
+  const [columns] = await pool.query(
+    "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS " +
+      "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'color' " +
+      "AND COLUMN_NAME IN ('colorId', 'name', 'code')"
+  );
+  const columnNames = new Set((Array.isArray(columns) ? columns : []).map((row) => String(row.COLUMN_NAME)));
+  if (!columnNames.has("colorId") || !columnNames.has("name")) return;
+  if (!columnNames.has("code")) {
+    await pool.query("ALTER TABLE color ADD COLUMN code VARCHAR(20) NOT NULL DEFAULT '#dddddd'");
+  }
+
+  const placeholders = DEFAULT_COLORS.map(() => "(?, ?, ?)").join(", ");
+  const values = DEFAULT_COLORS.flatMap((color) => [color.colorId, color.name, color.code]);
+  await pool.query(
+    `INSERT INTO color (colorId, name, code) VALUES ${placeholders} ` +
+      "ON DUPLICATE KEY UPDATE name = VALUES(name), code = VALUES(code)",
+    values
+  );
 };
 
 const readBannerSettings = async () => {
@@ -1863,24 +1917,12 @@ app.get("/api/admin/colors", async (_req, res) => {
 
     return res.json({
       ok: true,
-      colors: [
-        { colorId: 1, name: "Black", code: "#222222" },
-        { colorId: 2, name: "Ivory", code: "#efe9de" },
-        { colorId: 3, name: "White", code: "#ffffff" },
-        { colorId: 4, name: "Gray", code: "#a5a5a5" },
-        { colorId: 5, name: "Navy", code: "#1f2c56" },
-      ],
+      colors: DEFAULT_COLORS,
     });
   } catch (_error) {
     return res.json({
       ok: true,
-      colors: [
-        { colorId: 1, name: "Black", code: "#222222" },
-        { colorId: 2, name: "Ivory", code: "#efe9de" },
-        { colorId: 3, name: "White", code: "#ffffff" },
-        { colorId: 4, name: "Gray", code: "#a5a5a5" },
-        { colorId: 5, name: "Navy", code: "#1f2c56" },
-      ],
+      colors: DEFAULT_COLORS,
     });
   }
 });
@@ -2525,6 +2567,9 @@ ensureCartTable().catch((error) => {
 });
 ensureProductDetailColumns().catch((error) => {
   console.error("ensureProductDetailColumns failed:", error);
+});
+ensureColorPalette().catch((error) => {
+  console.error("ensureColorPalette failed:", error);
 });
 
 setInterval(() => {
