@@ -150,11 +150,11 @@ const ProductUpload = () => {
     setCustomColorCode(wheelColorToHex(colorWheelSelection.hue, colorWheelSelection.saturation));
   }, [colorWheelSelection]);
 
-  useEffect(() => {
+  const drawColorWheel = useCallback(() => {
     const canvas = colorWheelCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return false;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return false;
 
     const size = COLOR_WHEEL_SIZE;
     const radius = size / 2 - 2;
@@ -184,7 +184,17 @@ const ProductUpload = () => {
     }
 
     ctx.putImageData(imageData, 0, 0);
+    return true;
   }, []);
+
+  useEffect(() => {
+    if (!activeSizeId) return;
+    if (drawColorWheel()) return;
+    const frameId = window.requestAnimationFrame(() => {
+      drawColorWheel();
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeSizeId, drawColorWheel]);
 
   useEffect(() => {
     return () => {
