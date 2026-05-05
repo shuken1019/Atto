@@ -94,6 +94,9 @@ const ProductUpload = () => {
   const [sizeColorSelections, setSizeColorSelections] = useState<Record<number, number[]>>({});
   const [optionStocks, setOptionStocks] = useState<Record<string, string>>({});
   const [initialOptionStocks, setInitialOptionStocks] = useState<Record<string, number>>({});
+  const [customColorCode, setCustomColorCode] = useState('#c9473f');
+  const [customColorName, setCustomColorName] = useState('');
+  const [customColorPending, setCustomColorPending] = useState(false);
   const [loadingEditData, setLoadingEditData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -345,6 +348,67 @@ const ProductUpload = () => {
     setOptionStocks((prev) => ({ ...prev, [optionKey(sizeId, colorId)]: value }));
   };
 
+  const handleAddCustomColor = async () => {
+    const code = customColorCode.trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(code)) {
+      alert('색상 코드를 확인해주세요.');
+      return;
+    }
+
+    setCustomColorPending(true);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/admin/colors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          name: customColorName.trim(),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok || !result?.color) {
+        alert(result?.message ?? '색상 추가에 실패했습니다.');
+        return;
+      }
+
+      const color = result.color as Partial<AdminColor>;
+      const colorId = Number(color.colorId);
+      const name = String(color.name ?? '').trim();
+      const savedCode = String(color.code ?? code).trim();
+      if (!Number.isInteger(colorId) || colorId <= 0 || !name) {
+        alert('색상 정보가 올바르지 않습니다.');
+        return;
+      }
+
+      setAvailableColors((prev) => {
+        const nextColor = { colorId, name, code: savedCode };
+        const exists = prev.some((item) => item.colorId === colorId);
+        if (exists) {
+          return prev.map((item) => (item.colorId === colorId ? nextColor : item));
+        }
+        return [...prev, nextColor];
+      });
+
+      if (activeSizeId) {
+        setSizeColorSelections((prev) => {
+          const current = prev[activeSizeId] ?? [];
+          if (current.includes(colorId)) return prev;
+          return { ...prev, [activeSizeId]: [...current, colorId] };
+        });
+        setOptionStocks((prev) => ({
+          ...prev,
+          [optionKey(activeSizeId, colorId)]: prev[optionKey(activeSizeId, colorId)] ?? '',
+        }));
+      }
+
+      setCustomColorName('');
+    } catch {
+      alert('서버 연결에 실패했습니다.');
+    } finally {
+      setCustomColorPending(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const safeName = name.trim();
     const safeDescription = description.trim();
@@ -593,6 +657,24 @@ const ProductUpload = () => {
           {activeSize && (
             <Field key={`color-${activeSize.sizeId}`}>
               <Label>{activeSize.label} 색상 선택</Label>
+              <CustomColorRow>
+                <ColorPickerInput
+                  type="color"
+                  value={customColorCode}
+                  onChange={(e) => setCustomColorCode(e.target.value)}
+                  aria-label="커스텀 색상 선택"
+                  title={customColorCode.toUpperCase()}
+                />
+                <CustomColorTextInput
+                  value={customColorName}
+                  onChange={(e) => setCustomColorName(e.target.value)}
+                  placeholder={`Custom ${customColorCode.toUpperCase()}`}
+                  aria-label="커스텀 색상명"
+                />
+                <CustomColorButton type="button" onClick={handleAddCustomColor} disabled={customColorPending}>
+                  {customColorPending ? '추가 중' : '색상 추가'}
+                </CustomColorButton>
+              </CustomColorRow>
               <ColorGrid>
                 {availableColors.map((color) => (
                   <ColorButton
@@ -829,6 +911,73 @@ const ThumbnailMeta = styled.p`
 
 const HiddenFileInput = styled.input`
   display: none;
+`;
+
+const CustomColorRow = styled.div`
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+`;
+
+const ColorPickerInput = styled.input`
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #d9d9d9;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &::-webkit-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+
+  &::-moz-color-swatch {
+    border: 0;
+    border-radius: 50%;
+  }
+`;
+
+const CustomColorTextInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d9d9d9;
+  font-size: 13px;
+`;
+
+const CustomColorButton = styled.button`
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #222;
+  background: #222;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:disabled {
+    border-color: #bdbdbd;
+    background: #bdbdbd;
+    cursor: wait;
+  }
+
+  @media (max-width: 520px) {
+    grid-column: 1 / -1;
+  }
 `;
 
 const ColorGrid = styled.div`
@@ -1091,4 +1240,3 @@ const DetailTextPreview = styled.p`
   color: #444;
   white-space: pre-wrap;
 `;
-

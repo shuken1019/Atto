@@ -759,6 +759,12 @@ const ensureColorPalette = async () => {
   );
 };
 
+const normalizeHexColor = (value) => {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^#?([0-9a-fA-F]{6})$/);
+  return match ? `#${match[1].toLowerCase()}` : "";
+};
+
 const readBannerSettings = async () => {
   try {
     const raw = await fs.readFile(BANNER_JSON_PATH, "utf8");
@@ -1924,6 +1930,59 @@ app.get("/api/admin/colors", async (_req, res) => {
       ok: true,
       colors: DEFAULT_COLORS,
     });
+  }
+});
+
+app.post("/api/admin/colors", async (req, res) => {
+  const code = normalizeHexColor(req.body?.code);
+  const requestedName = String(req.body?.name ?? "").trim();
+
+  if (!code) {
+    return res.status(400).json({ ok: false, message: "valid hex color code required" });
+  }
+
+  try {
+    await ensureColorPalette();
+
+    const [existingRows] = await pool.query(
+      "SELECT colorId, name, code FROM color WHERE LOWER(code) = LOWER(?) LIMIT 1",
+      [code]
+    );
+    if (Array.isArray(existingRows) && existingRows.length > 0) {
+      return res.status(200).json({ ok: true, color: existingRows[0] });
+    }
+
+    const fallbackName = `Custom ${code.toUpperCase()}`;
+    const baseName = (requestedName || fallbackName).slice(0, 40);
+    const [insertResult] = await pool.query(
+      "INSERT INTO color (name, code) VALUES (?, ?)",
+      [baseName, code]
+    );
+    const colorId = Number(insertResult.insertId);
+
+    return res.status(201).json({
+      ok: true,
+      color: { colorId, name: baseName, code },
+    });
+  } catch (error) {
+    if (error?.code !== "ER_DUP_ENTRY") {
+      return res.status(500).json(toSafeErrorBody("color create failed", error));
+    }
+
+    try {
+      const uniqueName = `${(requestedName || "Custom").slice(0, 28)} ${code.toUpperCase()}`;
+      const [insertResult] = await pool.query(
+        "INSERT INTO color (name, code) VALUES (?, ?)",
+        [uniqueName, code]
+      );
+      const colorId = Number(insertResult.insertId);
+      return res.status(201).json({
+        ok: true,
+        color: { colorId, name: uniqueName, code },
+      });
+    } catch (retryError) {
+      return res.status(500).json(toSafeErrorBody("color create failed", retryError));
+    }
   }
 });
 
