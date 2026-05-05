@@ -65,12 +65,56 @@ const AVAILABLE_SIZES: AdminSize[] = [
   { sizeId: 3, label: 'L' },
 ];
 
+const COLOR_WHEEL_SIZE = 220;
+
 const categoryFromId = (categoryId: number): CategoryType => {
   if (categoryId === 1) return 'outer';
   if (categoryId === 2) return 'top';
   if (categoryId === 3) return 'bottom';
   if (categoryId === 4) return 'acc';
   return 'top';
+};
+
+const hslToHex = (hue: number, saturation: number, lightness: number): string => {
+  const normalizedHue = ((hue % 360) + 360) % 360;
+  const s = Math.max(0, Math.min(1, saturation));
+  const l = Math.max(0, Math.min(1, lightness));
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const huePrime = normalizedHue / 60;
+  const x = chroma * (1 - Math.abs((huePrime % 2) - 1));
+  const m = l - chroma / 2;
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (huePrime >= 0 && huePrime < 1) {
+    r = chroma;
+    g = x;
+  } else if (huePrime < 2) {
+    r = x;
+    g = chroma;
+  } else if (huePrime < 3) {
+    g = chroma;
+    b = x;
+  } else if (huePrime < 4) {
+    g = x;
+    b = chroma;
+  } else if (huePrime < 5) {
+    r = x;
+    b = chroma;
+  } else {
+    r = chroma;
+    b = x;
+  }
+
+  const toHex = (value: number) => Math.round((value + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
+const wheelColorToHex = (hue: number, saturation: number): string => {
+  const lightness = 0.97 - Math.max(0, Math.min(1, saturation)) * 0.47;
+  return hslToHex(hue, saturation, lightness);
 };
 
 const ProductUpload = () => {
@@ -97,8 +141,50 @@ const ProductUpload = () => {
   const [customColorCode, setCustomColorCode] = useState('#c9473f');
   const [customColorName, setCustomColorName] = useState('');
   const [customColorPending, setCustomColorPending] = useState(false);
+  const [colorWheelSelection, setColorWheelSelection] = useState({ hue: 4, saturation: 0.72 });
+  const colorWheelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [loadingEditData, setLoadingEditData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setCustomColorCode(wheelColorToHex(colorWheelSelection.hue, colorWheelSelection.saturation));
+  }, [colorWheelSelection]);
+
+  useEffect(() => {
+    const canvas = colorWheelCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const size = COLOR_WHEEL_SIZE;
+    const radius = size / 2 - 2;
+    const center = size / 2;
+    const imageData = ctx.createImageData(size, size);
+
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const dx = x - center;
+        const dy = y - center;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const index = (y * size + x) * 4;
+
+        if (distance > radius) {
+          imageData.data[index + 3] = 0;
+          continue;
+        }
+
+        const hue = (Math.atan2(dy, dx) * 180) / Math.PI + 360;
+        const saturation = Math.min(distance / radius, 1);
+        const hex = wheelColorToHex(hue, saturation);
+        imageData.data[index] = parseInt(hex.slice(1, 3), 16);
+        imageData.data[index + 1] = parseInt(hex.slice(3, 5), 16);
+        imageData.data[index + 2] = parseInt(hex.slice(5, 7), 16);
+        imageData.data[index + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -346,6 +432,26 @@ const ProductUpload = () => {
 
   const handleOptionStockChange = (sizeId: number, colorId: number, value: string) => {
     setOptionStocks((prev) => ({ ...prev, [optionKey(sizeId, colorId)]: value }));
+  };
+
+  const updateColorFromPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = colorWheelCanvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scale = COLOR_WHEEL_SIZE / rect.width;
+    const center = COLOR_WHEEL_SIZE / 2;
+    const radius = COLOR_WHEEL_SIZE / 2 - 2;
+    const x = (event.clientX - rect.left) * scale;
+    const y = (event.clientY - rect.top) * scale;
+    const dx = x - center;
+    const dy = y - center;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const clampedDistance = Math.min(distance, radius);
+    const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+    const saturation = clampedDistance / radius;
+
+    setColorWheelSelection({ hue, saturation });
   };
 
   const handleAddCustomColor = async () => {
@@ -657,24 +763,41 @@ const ProductUpload = () => {
           {activeSize && (
             <Field key={`color-${activeSize.sizeId}`}>
               <Label>{activeSize.label} 색상 선택</Label>
-              <CustomColorRow>
-                <ColorPickerInput
-                  type="color"
-                  value={customColorCode}
-                  onChange={(e) => setCustomColorCode(e.target.value)}
-                  aria-label="커스텀 색상 선택"
-                  title={customColorCode.toUpperCase()}
-                />
-                <CustomColorTextInput
-                  value={customColorName}
-                  onChange={(e) => setCustomColorName(e.target.value)}
-                  placeholder={`Custom ${customColorCode.toUpperCase()}`}
-                  aria-label="커스텀 색상명"
-                />
-                <CustomColorButton type="button" onClick={handleAddCustomColor} disabled={customColorPending}>
-                  {customColorPending ? '추가 중' : '색상 추가'}
-                </CustomColorButton>
-              </CustomColorRow>
+              <CustomColorPanel>
+                <ColorWheelWrap>
+                  <ColorWheelCanvas
+                    ref={colorWheelCanvasRef}
+                    width={COLOR_WHEEL_SIZE}
+                    height={COLOR_WHEEL_SIZE}
+                    onPointerDown={(event) => {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      updateColorFromPointer(event);
+                    }}
+                    onPointerMove={(event) => {
+                      if (event.buttons !== 1) return;
+                      updateColorFromPointer(event);
+                    }}
+                    aria-label="커스텀 색상 원형 선택기"
+                  />
+                  <ColorWheelMarker
+                    $x={COLOR_WHEEL_SIZE / 2 + Math.cos((colorWheelSelection.hue * Math.PI) / 180) * colorWheelSelection.saturation * (COLOR_WHEEL_SIZE / 2 - 2)}
+                    $y={COLOR_WHEEL_SIZE / 2 + Math.sin((colorWheelSelection.hue * Math.PI) / 180) * colorWheelSelection.saturation * (COLOR_WHEEL_SIZE / 2 - 2)}
+                  />
+                </ColorWheelWrap>
+                <CustomColorControls>
+                  <CustomColorPreview $colorCode={customColorCode} title={customColorCode.toUpperCase()} />
+                  <CustomColorTextInput
+                    value={customColorName}
+                    onChange={(e) => setCustomColorName(e.target.value)}
+                    placeholder={`Custom ${customColorCode.toUpperCase()}`}
+                    aria-label="커스텀 색상명"
+                  />
+                  <CustomColorCode>{customColorCode.toUpperCase()}</CustomColorCode>
+                  <CustomColorButton type="button" onClick={handleAddCustomColor} disabled={customColorPending}>
+                    {customColorPending ? '추가 중' : '색상 추가'}
+                  </CustomColorButton>
+                </CustomColorControls>
+              </CustomColorPanel>
               <ColorGrid>
                 {availableColors.map((color) => (
                   <ColorButton
@@ -913,41 +1036,53 @@ const HiddenFileInput = styled.input`
   display: none;
 `;
 
-const CustomColorRow = styled.div`
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
+const CustomColorPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 12px;
-
-  @media (max-width: 520px) {
-    grid-template-columns: 40px minmax(0, 1fr);
-  }
+  padding: 12px;
+  border: 1px solid #ece7de;
+  background: #fbfaf7;
 `;
 
-const ColorPickerInput = styled.input`
-  width: 36px;
-  height: 36px;
+const ColorWheelWrap = styled.div`
+  width: min(100%, ${COLOR_WHEEL_SIZE}px);
+  aspect-ratio: 1;
+  position: relative;
+  align-self: center;
+`;
+
+const ColorWheelCanvas = styled.canvas`
+  width: 100%;
+  height: 100%;
+  display: block;
   padding: 0;
-  border: 1px solid #d9d9d9;
   border-radius: 50%;
-  background: transparent;
+  border: 1px solid #d6d1c8;
+  background: #fff;
   cursor: pointer;
-  overflow: hidden;
+  touch-action: none;
+`;
 
-  &::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
+const ColorWheelMarker = styled.span<{ $x: number; $y: number }>`
+  position: absolute;
+  left: ${(props) => (props.$x / COLOR_WHEEL_SIZE) * 100}%;
+  top: ${(props) => (props.$y / COLOR_WHEEL_SIZE) * 100}%;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+`;
 
-  &::-webkit-color-swatch {
-    border: 0;
-    border-radius: 50%;
-  }
-
-  &::-moz-color-swatch {
-    border: 0;
-    border-radius: 50%;
-  }
+const CustomColorControls = styled.div`
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
 `;
 
 const CustomColorTextInput = styled.input`
@@ -959,7 +1094,22 @@ const CustomColorTextInput = styled.input`
   font-size: 13px;
 `;
 
+const CustomColorPreview = styled.span<{ $colorCode: string }>`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #cfcfcf;
+  background: ${(props) => props.$colorCode};
+`;
+
+const CustomColorCode = styled.span`
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #6f6f6f;
+`;
+
 const CustomColorButton = styled.button`
+  grid-column: 1 / -1;
   height: 36px;
   padding: 0 12px;
   border: 1px solid #222;
@@ -973,10 +1123,6 @@ const CustomColorButton = styled.button`
     border-color: #bdbdbd;
     background: #bdbdbd;
     cursor: wait;
-  }
-
-  @media (max-width: 520px) {
-    grid-column: 1 / -1;
   }
 `;
 
