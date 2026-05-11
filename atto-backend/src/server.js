@@ -1846,37 +1846,6 @@ app.get("/api/admin/dashboard", async (_req, res) => {
       "ORDER BY o.created_at DESC, o.orderId DESC LIMIT 10"
     );
 
-    let lowStockRows = [];
-    const colorMeta = await resolveColorColumns();
-    const colorNameExpr = colorMeta.useJoin && colorMeta.hasName ? "co.name" : "NULL";
-    const colorJoin = colorMeta.useJoin ? "LEFT JOIN color co ON co.colorId = po.colorId " : "";
-    try {
-      const [rows] = await pool.query(
-        "SELECT p.productId, p.name, po.colorId, po.sizeId, " +
-        `${colorNameExpr} AS colorName, ` +
-        "CASE po.sizeId WHEN 1 THEN 'S' WHEN 2 THEN 'M' WHEN 3 THEN 'L' ELSE CONCAT('SIZE-', po.sizeId) END AS sizeLabel, " +
-        "po.stock " +
-        "FROM product_option po JOIN product p ON p.productId = po.productId " +
-        colorJoin +
-        "WHERE po.stock <= 5 ORDER BY po.stock ASC, p.productId DESC LIMIT 10"
-      );
-      lowStockRows = Array.isArray(rows) ? rows : [];
-    } catch (_error) {
-      const fallbackColorMeta = await resolveColorColumns();
-      const fallbackColorNameExpr = fallbackColorMeta.useJoin && fallbackColorMeta.hasName ? "co.name" : "NULL";
-      const fallbackColorJoin = fallbackColorMeta.useJoin ? "LEFT JOIN color co ON co.colorId = pc.colorId " : "";
-      const [rows] = await pool.query(
-        "SELECT p.productId, p.name, pc.colorId, NULL AS sizeId, " +
-        `${fallbackColorNameExpr} AS colorName, ` +
-        "NULL AS sizeLabel, " +
-        "pc.stock " +
-        "FROM product_color pc JOIN product p ON p.productId = pc.productId " +
-        fallbackColorJoin +
-        "WHERE pc.stock <= 5 ORDER BY pc.stock ASC, p.productId DESC LIMIT 10"
-      );
-      lowStockRows = Array.isArray(rows) ? rows : [];
-    }
-
     return res.json({
       ok: true,
       summary: {
@@ -1888,7 +1857,6 @@ app.get("/api/admin/dashboard", async (_req, res) => {
       ordersByStatus: orderRows,
       salesByDay: sales7Rows,
       recentOrders: recentOrdersRows,
-      lowStockItems: lowStockRows,
     });
   } catch (error) {
     return res.status(500).json(toSafeErrorBody("admin dashboard fetch failed", error));
@@ -1898,12 +1866,8 @@ app.get("/api/admin/dashboard", async (_req, res) => {
 app.get("/api/admin/products", async (_req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.detail_images, p.detail_text, p.created_at, p.isLive, " +
-        "COALESCE(SUM(pc.stock), 0) AS totalStock " +
-        "FROM product p " +
-        "LEFT JOIN product_color pc ON pc.productId = p.productId " +
-        "GROUP BY p.productId " +
-        "ORDER BY p.created_at DESC, p.productId DESC"
+      "SELECT p.productId, p.name, p.description, p.price, p.categoryId, p.status, p.thumbnail, p.detail_images, p.detail_text, p.created_at, p.isLive " +
+        "FROM product p ORDER BY p.created_at DESC, p.productId DESC"
     );
     return res.json({ ok: true, products: rows });
   } catch (error) {
@@ -2002,11 +1966,11 @@ app.get("/api/admin/products/:productId", async (req, res) => {
     }
 
     const [productColors] = await pool.query(
-      "SELECT productColorId, productId, colorId, stock FROM product_color WHERE productId = ? ORDER BY productColorId ASC",
+      "SELECT productColorId, productId, colorId FROM product_color WHERE productId = ? ORDER BY productColorId ASC",
       [productId]
     );
     const [productOptions] = await pool.query(
-      "SELECT optionId, productId, colorId, sizeId, stock, additionalPrice FROM product_option WHERE productId = ? ORDER BY optionId ASC",
+      "SELECT optionId, productId, colorId, sizeId, additionalPrice FROM product_option WHERE productId = ? ORDER BY optionId ASC",
       [productId]
     );
 
@@ -2096,36 +2060,26 @@ app.post("/api/admin/products", async (req, res) => {
 
     for (const row of normalizedColors) {
       const colorIdValue = toIntOrNull(row?.colorId);
-      const stockValue = toIntOrNull(row?.stock);
 
       if (!colorIdValue || colorIdValue <= 0) {
         await conn.rollback();
         return res.status(400).json({ ok: false, message: "productColors[].colorId must be positive integer" });
       }
-      if (stockValue === null || stockValue < 0) {
-        await conn.rollback();
-        return res.status(400).json({ ok: false, message: "productColors[].stock must be non-negative integer" });
-      }
 
       await conn.query(
-        "INSERT INTO product_color (productId, colorId, stock) VALUES (?, ?, ?)",
-        [newProductId, colorIdValue, stockValue]
+        "INSERT INTO product_color (productId, colorId) VALUES (?, ?)",
+        [newProductId, colorIdValue]
       );
     }
 
     for (const row of normalizedOptions) {
       const colorIdValue = toIntOrNull(row?.colorId);
       const sizeIdValue = toIntOrNull(row?.sizeId);
-      const stockValue = toIntOrNull(row?.stock);
       const additionalPriceValue = toIntOrNull(row?.additionalPrice ?? 0);
 
       if (!colorIdValue || colorIdValue <= 0 || !sizeIdValue || sizeIdValue <= 0) {
         await conn.rollback();
         return res.status(400).json({ ok: false, message: "productOptions[].colorId/sizeId must be positive integer" });
-      }
-      if (stockValue === null || stockValue < 0) {
-        await conn.rollback();
-        return res.status(400).json({ ok: false, message: "productOptions[].stock must be non-negative integer" });
       }
       if (additionalPriceValue === null) {
         await conn.rollback();
@@ -2133,8 +2087,8 @@ app.post("/api/admin/products", async (req, res) => {
       }
 
       await conn.query(
-        "INSERT INTO product_option (productId, colorId, sizeId, stock, additionalPrice) VALUES (?, ?, ?, ?, ?)",
-        [newProductId, colorIdValue, sizeIdValue, stockValue, additionalPriceValue]
+        "INSERT INTO product_option (productId, colorId, sizeId, additionalPrice) VALUES (?, ?, ?, ?)",
+        [newProductId, colorIdValue, sizeIdValue, additionalPriceValue]
       );
     }
 
@@ -2259,36 +2213,26 @@ app.put("/api/admin/products/:productId", async (req, res) => {
 
     for (const row of normalizedColors) {
       const colorIdValue = toIntOrNull(row?.colorId);
-      const stockValue = toIntOrNull(row?.stock);
 
       if (!colorIdValue || colorIdValue <= 0) {
         await conn.rollback();
         return res.status(400).json({ ok: false, message: "productColors[].colorId must be positive integer" });
       }
-      if (stockValue === null || stockValue < 0) {
-        await conn.rollback();
-        return res.status(400).json({ ok: false, message: "productColors[].stock must be non-negative integer" });
-      }
 
       await conn.query(
-        "INSERT INTO product_color (productId, colorId, stock) VALUES (?, ?, ?)",
-        [productId, colorIdValue, stockValue]
+        "INSERT INTO product_color (productId, colorId) VALUES (?, ?)",
+        [productId, colorIdValue]
       );
     }
 
     for (const row of normalizedOptions) {
       const colorIdValue = toIntOrNull(row?.colorId);
       const sizeIdValue = toIntOrNull(row?.sizeId);
-      const stockValue = toIntOrNull(row?.stock);
       const additionalPriceValue = toIntOrNull(row?.additionalPrice ?? 0);
 
       if (!colorIdValue || colorIdValue <= 0 || !sizeIdValue || sizeIdValue <= 0) {
         await conn.rollback();
         return res.status(400).json({ ok: false, message: "productOptions[].colorId/sizeId must be positive integer" });
-      }
-      if (stockValue === null || stockValue < 0) {
-        await conn.rollback();
-        return res.status(400).json({ ok: false, message: "productOptions[].stock must be non-negative integer" });
       }
       if (additionalPriceValue === null) {
         await conn.rollback();
@@ -2296,8 +2240,8 @@ app.put("/api/admin/products/:productId", async (req, res) => {
       }
 
       await conn.query(
-        "INSERT INTO product_option (productId, colorId, sizeId, stock, additionalPrice) VALUES (?, ?, ?, ?, ?)",
-        [productId, colorIdValue, sizeIdValue, stockValue, additionalPriceValue]
+        "INSERT INTO product_option (productId, colorId, sizeId, additionalPrice) VALUES (?, ?, ?, ?)",
+        [productId, colorIdValue, sizeIdValue, additionalPriceValue]
       );
     }
 

@@ -7,14 +7,13 @@ type ProductRow = {
   name: string;
   category: string;
   price: number;
-  stock: number;
   description: string;
 };
 
 const mockProducts: ProductRow[] = [
-  { id: 1, name: 'Relaxed Cardigan', category: '상의', price: 98000, stock: 12, description: '부드러운 터치감의 데일리 가디건' },
-  { id: 2, name: 'Wide Cotton Pants', category: '하의', price: 68000, stock: 5, description: '여유로운 핏의 코튼 팬츠' },
-  { id: 3, name: 'Soft Wool Muffler', category: '악세서리', price: 47000, stock: 0, description: '포근한 울 머플러' },
+  { id: 1, name: 'Relaxed Cardigan', category: '상의', price: 98000, description: '부드러운 터치감의 데일리 가디건' },
+  { id: 2, name: 'Wide Cotton Pants', category: '하의', price: 68000, description: '여유로운 핏의 코튼 팬츠' },
+  { id: 3, name: 'Soft Wool Muffler', category: '악세서리', price: 47000, description: '포근한 울 머플러' },
 ];
 
 const ProductEdit: React.FC = () => {
@@ -30,7 +29,6 @@ const ProductEdit: React.FC = () => {
     name: product?.name ?? '',
     category: product?.category ?? '상의',
     price: String(product?.price ?? 0),
-    stock: String(product?.stock ?? 0),
     description: product?.description ?? '',
   }));
 
@@ -82,10 +80,6 @@ const ProductEdit: React.FC = () => {
             <Input name="price" type="number" value={formData.price} onChange={handleChange} />
           </Field>
 
-          <Field>
-            <Label>재고</Label>
-            <Input name="stock" type="number" value={formData.stock} onChange={handleChange} />
-          </Field>
         </Grid>
 
         <Field>

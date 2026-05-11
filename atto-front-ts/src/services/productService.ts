@@ -18,14 +18,13 @@ export type AdminProductRow = {
   detail_text?: string | null;
   created_at: string;
   isLive?: number | boolean;
-  totalStock?: number;
 };
 
 type AdminProductDetail = {
   ok: boolean;
   product: AdminProductRow;
-  productColors: Array<{ colorId: number; stock: number }>;
-  productOptions: Array<{ colorId: number; sizeId: number; stock: number }>;
+  productColors: Array<{ colorId: number }>;
+  productOptions: Array<{ colorId: number; sizeId: number }>;
 };
 
 type ColorRow = {
@@ -231,12 +230,10 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
     for (const option of result.productOptions ?? []) {
       const colorId = Number(option.colorId);
       const sizeId = Number(option.sizeId);
-      const stock = Number(option.stock ?? 0);
       if (!Number.isInteger(colorId) || !Number.isInteger(sizeId)) continue;
 
       const sizeLabel = sizeLabelFromId(sizeId);
       sizeLabelById.set(sizeId, sizeLabel);
-      if (stock <= 0) continue;
 
       const prev = sizesByColor.get(colorId) ?? [];
       if (!prev.includes(sizeLabel)) {
@@ -253,13 +250,8 @@ export const getProductById = async (id: number): Promise<IProduct | undefined> 
         color: meta?.name || `Color-${colorId}`,
         colorCode: meta?.code || '#dddddd',
         sizes: sizesByColor.get(colorId) ?? [],
-        stock: Number(row.stock ?? 0),
       };
     });
-
-    product.keyInfo = [
-      `총 재고: ${(result.productColors ?? []).reduce((sum, row) => sum + Number(row.stock ?? 0), 0)}`,
-    ];
 
     product.sizeGuide = Array.from(sizeLabelById.values()).map((size) => ({
       label: size,

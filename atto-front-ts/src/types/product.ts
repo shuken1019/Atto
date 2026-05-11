@@ -9,7 +9,6 @@ export interface IProductVariant {
   color: string;
   colorCode: string;
   sizes: string[];
-  stock: number;
 }
 
 // 상품 메인 인터페이스

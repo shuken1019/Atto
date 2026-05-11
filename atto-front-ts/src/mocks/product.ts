@@ -42,7 +42,7 @@ export const mockProducts: IProduct[] = [
     category: 'outer',
     ...createBaseProduct('cardigan'),
     description: "편안한 린넨 가디건입니다.",
-    variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M"], stock: 10 }],
+    variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M"] }],
     isNew: false
   },
   {
@@ -52,7 +52,7 @@ export const mockProducts: IProduct[] = [
     category: 'outer',
     ...createBaseProduct('jacket'),
     description: "시원한 차콜 자켓입니다.",
-    variants: [{ color: "Charcoal", colorCode: "#36454F", sizes: ["M", "L"], stock: 5 }],
+    variants: [{ color: "Charcoal", colorCode: "#36454F", sizes: ["M", "L"] }],
     isNew: true
   },
   {
@@ -62,7 +62,7 @@ export const mockProducts: IProduct[] = [
     category: 'top',
     ...createBaseProduct('tshirt'),
     description: "기본 린넨 티셔츠입니다.",
-    variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M", "L"], stock: 20 }],
+    variants: [{ color: "Beige", colorCode: "#F5F5DC", sizes: ["S", "M", "L"] }],
     isNew: false
   },
   {

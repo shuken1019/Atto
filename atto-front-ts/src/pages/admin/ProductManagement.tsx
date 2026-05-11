@@ -82,7 +82,6 @@ const ProductManagement: React.FC = () => {
               <th>상품명</th>
               <th>카테고리</th>
               <th>가격</th>
-              <th>재고</th>
               <th>라이브</th>
               <th>관리</th>
             </tr>
@@ -90,13 +89,13 @@ const ProductManagement: React.FC = () => {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7}>불러오는 중...</td>
+                <td colSpan={6}>불러오는 중...</td>
               </tr>
             )}
 
             {!loading && error && (
               <tr>
-                <td colSpan={7}>{error}</td>
+                <td colSpan={6}>{error}</td>
               </tr>
             )}
 
@@ -110,7 +109,6 @@ const ProductManagement: React.FC = () => {
                     <td>{product.name}</td>
                     <td>{categoryLabel(Number(product.categoryId))}</td>
                     <td>₩{Number(product.price ?? 0).toLocaleString()}</td>
-                    <td>{Number(product.totalStock ?? 0)}</td>
                     <td>
                       <LiveBtn type="button" $active={isLive} disabled={togglingId === productId} onClick={() => handleToggleLive(product)}>
                         {isLive ? '라이브 해제' : '라이브'}
@@ -130,7 +128,7 @@ const ProductManagement: React.FC = () => {
 
             {!loading && !error && products.length === 0 && (
               <tr>
-                <td colSpan={7}>등록된 상품이 없습니다.</td>
+                <td colSpan={6}>등록된 상품이 없습니다.</td>
               </tr>
             )}
           </tbody>
@@ -160,7 +158,6 @@ const ProductManagement: React.FC = () => {
                 <MobileMeta>
                   <span>카테고리</span><b>{categoryLabel(Number(product.categoryId))}</b>
                   <span>가격</span><b>₩{Number(product.price ?? 0).toLocaleString()}</b>
-                  <span>재고</span><b>{Number(product.totalStock ?? 0)}</b>
                 </MobileMeta>
 
                 <MobileActions>

@@ -13,15 +13,6 @@ type DashboardResponse = {
   };
   ordersByStatus: Array<{ status: string; cnt: number }>;
   recentOrders: Array<{ orderId: number; orderNo?: string; created_at: string; totalAmount: number; status: string; userName: string | null }>;
-  lowStockItems: Array<{
-    productId: number;
-    name: string;
-    colorId: number | null;
-    sizeId: number | null;
-    colorName?: string | null;
-    sizeLabel?: string | null;
-    stock: number;
-  }>;
 };
 
 const statusLabel = (status: string): string => {
@@ -107,38 +98,6 @@ const Dashboard: React.FC = () => {
                 </StatusBox>
               ))}
             </StatusGrid>
-          </Section>
-
-          <Section>
-            <h3>재고 부족 상품</h3>
-            <Table>
-              <thead>
-                <tr>
-                  <th>상품ID</th>
-                  <th>상품명</th>
-                  <th>색상</th>
-                  <th>사이즈</th>
-                  <th>재고</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.lowStockItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={5}>재고 부족 상품이 없습니다.</td>
-                  </tr>
-                ) : (
-                  data.lowStockItems.map((item) => (
-                    <tr key={`${item.productId}-${item.colorId ?? 0}-${item.sizeId ?? 0}`}>
-                      <td>{item.productId}</td>
-                      <td>{item.name}</td>
-                      <td>{item.colorName ?? (item.colorId ? `Color-${item.colorId}` : '-')}</td>
-                      <td>{item.sizeLabel ?? (item.sizeId ? `SIZE-${item.sizeId}` : '-')}</td>
-                      <td>{item.stock}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </Table>
           </Section>
 
           <Section>

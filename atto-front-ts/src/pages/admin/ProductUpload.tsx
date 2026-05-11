@@ -22,7 +22,6 @@ type AdminProductOption = {
   productId?: number;
   colorId: number;
   sizeId: number;
-  stock: number;
   additionalPrice?: number;
 };
 
@@ -136,8 +135,6 @@ const ProductUpload = () => {
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
   const [activeSizeId, setActiveSizeId] = useState<number | null>(null);
   const [sizeColorSelections, setSizeColorSelections] = useState<Record<number, number[]>>({});
-  const [optionStocks, setOptionStocks] = useState<Record<string, string>>({});
-  const [initialOptionStocks, setInitialOptionStocks] = useState<Record<string, number>>({});
   const [customColorCode, setCustomColorCode] = useState('#c9473f');
   const [customColorName, setCustomColorName] = useState('');
   const [customColorPending, setCustomColorPending] = useState(false);
@@ -299,13 +296,9 @@ const ProductUpload = () => {
 
         const sizeSet = new Set<number>();
         const selectionMap: Record<number, number[]> = {};
-        const stockTextMap: Record<string, string> = {};
-        const stockNumMap: Record<string, number> = {};
-
         options.forEach((row) => {
           const sizeId = Number(row.sizeId);
           const colorId = Number(row.colorId);
-          const stock = Number(row.stock ?? 0);
           if (!Number.isInteger(sizeId) || sizeId <= 0 || !Number.isInteger(colorId) || colorId <= 0) return;
 
           sizeSet.add(sizeId);
@@ -313,18 +306,12 @@ const ProductUpload = () => {
           if (!selectionMap[sizeId].includes(colorId)) {
             selectionMap[sizeId].push(colorId);
           }
-
-          const key = `${sizeId}:${colorId}`;
-          stockTextMap[key] = String(stock);
-          stockNumMap[key] = stock;
         });
 
         const sizeIds = Array.from(sizeSet).sort((a, b) => a - b);
         setSelectedSizeIds(sizeIds);
         setActiveSizeId(sizeIds[0] ?? null);
         setSizeColorSelections(selectionMap);
-        setOptionStocks(stockTextMap);
-        setInitialOptionStocks(stockNumMap);
       } catch {
         alert('서버 연결에 실패했습니다.');
       } finally {
@@ -383,8 +370,6 @@ const ProductUpload = () => {
       reader.readAsDataURL(file);
     });
 
-  const optionKey = (sizeId: number, colorId: number) => `${sizeId}:${colorId}`;
-
   const handleToggleSize = (sizeId: number) => {
     setSelectedSizeIds((prev) => {
       if (prev.includes(sizeId)) {
@@ -397,13 +382,6 @@ const ProductUpload = () => {
         setSizeColorSelections((selections) => {
           const copied = { ...selections };
           delete copied[sizeId];
-          return copied;
-        });
-        setOptionStocks((stocks) => {
-          const copied: Record<string, string> = {};
-          Object.entries(stocks).forEach(([key, value]) => {
-            if (!key.startsWith(`${sizeId}:`)) copied[key] = value;
-          });
           return copied;
         });
         setActiveSizeId((curr) => {
@@ -424,24 +402,11 @@ const ProductUpload = () => {
       const current = prev[sizeId] ?? [];
       if (current.includes(colorId)) {
         const next = current.filter((id) => id !== colorId);
-        setOptionStocks((stocks) => {
-          const copied = { ...stocks };
-          delete copied[optionKey(sizeId, colorId)];
-          return copied;
-        });
         return { ...prev, [sizeId]: next };
       }
 
-      setOptionStocks((stocks) => ({
-        ...stocks,
-        [optionKey(sizeId, colorId)]: stocks[optionKey(sizeId, colorId)] ?? '',
-      }));
       return { ...prev, [sizeId]: [...current, colorId] };
     });
-  };
-
-  const handleOptionStockChange = (sizeId: number, colorId: number, value: string) => {
-    setOptionStocks((prev) => ({ ...prev, [optionKey(sizeId, colorId)]: value }));
   };
 
   const updateColorFromPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -511,10 +476,6 @@ const ProductUpload = () => {
           if (current.includes(colorId)) return prev;
           return { ...prev, [activeSizeId]: [...current, colorId] };
         });
-        setOptionStocks((prev) => ({
-          ...prev,
-          [optionKey(activeSizeId, colorId)]: prev[optionKey(activeSizeId, colorId)] ?? '',
-        }));
       }
 
       setCustomColorName('');
@@ -555,39 +516,15 @@ const ProductUpload = () => {
         return;
       }
 
-      for (const colorId of colorIds) {
-        const key = optionKey(sizeId, colorId);
-        const rawStock = String(optionStocks[key] ?? '').trim();
-        if (rawStock.length === 0 && !isEditMode) {
-          const sizeLabel = AVAILABLE_SIZES.find((size) => size.sizeId === sizeId)?.label ?? String(sizeId);
-          const colorLabel = availableColors.find((color) => color.colorId === colorId)?.name ?? `색상-${colorId}`;
-          alert(`${sizeLabel} / ${colorLabel} 재고를 입력해주세요.`);
-          return;
-        }
-        if (rawStock.length === 0 && isEditMode) {
-          continue;
-        }
-        const stockNum = Number(rawStock);
-        if (!Number.isInteger(stockNum) || stockNum < 0) {
-          alert('재고는 0 이상의 정수여야 합니다.');
-          return;
-        }
-      }
     }
 
     const productOptions = selectedSizeIds.flatMap((sizeId) => {
       const colorIds = sizeColorSelections[sizeId] ?? [];
-      return colorIds.map((colorId) => {
-        const key = optionKey(sizeId, colorId);
-        const rawStock = String(optionStocks[key] ?? '').trim();
-        const stock = rawStock.length > 0 ? Number(rawStock) : (initialOptionStocks[key] ?? 0);
-        return {
-          colorId,
-          sizeId,
-          stock,
-          additionalPrice: 0,
-        };
-      });
+      return colorIds.map((colorId) => ({
+        colorId,
+        sizeId,
+        additionalPrice: 0,
+      }));
     });
 
     if (productOptions.length === 0) {
@@ -595,14 +532,11 @@ const ProductUpload = () => {
       return;
     }
 
-    const colorStockMap: Record<number, number> = {};
+    const colorIdSet = new Set<number>();
     productOptions.forEach((option) => {
-      colorStockMap[option.colorId] = (colorStockMap[option.colorId] ?? 0) + option.stock;
+      colorIdSet.add(option.colorId);
     });
-    const productColors = Object.entries(colorStockMap).map(([colorId, stock]) => ({
-      colorId: Number(colorId),
-      stock,
-    }));
+    const productColors = Array.from(colorIdSet).map((colorId) => ({ colorId }));
 
     setSubmitting(true);
     try {
@@ -660,8 +594,6 @@ const ProductUpload = () => {
       setSelectedSizeIds([]);
       setActiveSizeId(null);
       setSizeColorSelections({});
-      setOptionStocks({});
-      setInitialOptionStocks({});
     } catch {
       alert('서버 연결에 실패했습니다.');
     } finally {
@@ -673,7 +605,7 @@ const ProductUpload = () => {
     <Page>
       <Header>
         <PageTitle>{isEditMode ? '상품 수정' : '상품 업로드'}</PageTitle>
-        <PageDesc>{isEditMode ? '등록된 상품 정보를 수정합니다.' : '상품 기본정보와 색상/재고를 등록합니다.'}</PageDesc>
+        <PageDesc>{isEditMode ? '등록된 상품 정보를 수정합니다.' : '상품 기본정보와 색상을 등록합니다.'}</PageDesc>
       </Header>
 
       <Workspace>
@@ -823,46 +755,19 @@ const ProductUpload = () => {
             </Field>
           )}
 
-          {activeSize && (() => {
-            const colorIds = sizeColorSelections[activeSize.sizeId] ?? [];
-            const colors = availableColors.filter((color) => colorIds.includes(color.colorId));
-            if (colors.length === 0) return null;
-            return (
-              <Field key={`stock-${activeSize.sizeId}`}>
-                <Label>{activeSize.label} 색상별 재고</Label>
-                <StockList>
-                  {colors.map((color) => (
-                    <StockRow key={`${activeSize.sizeId}-${color.colorId}`}>
-                      <StockColor>
-                        <Dot style={{ backgroundColor: color.code }} />
-                        {color.name}
-                      </StockColor>
-                      <StockInput
-                        type="number"
-                        min={0}
-                        value={optionStocks[optionKey(activeSize.sizeId, color.colorId)] ?? ''}
-                        onChange={(e) => handleOptionStockChange(activeSize.sizeId, color.colorId, e.target.value)}
-                      />
-                    </StockRow>
-                  ))}
-                </StockList>
-              </Field>
-            );
-          })()}
-
           {selectedColors.length > 0 && (
             <Field>
               <Label>선택된 색상 미리보기</Label>
-              <StockList>
+              <SelectedColorList>
                 {selectedColors.map((color) => (
-                  <StockRow key={color.colorId}>
-                    <StockColor>
+                  <SelectedColorRow key={color.colorId}>
+                    <SelectedColorLabel>
                       <Dot style={{ backgroundColor: color.code }} />
                       {color.name}
-                    </StockColor>
-                  </StockRow>
+                    </SelectedColorLabel>
+                  </SelectedColorRow>
                 ))}
-              </StockList>
+              </SelectedColorList>
             </Field>
           )}
 
@@ -1179,20 +1084,20 @@ const ColorButton = styled.button<{ $colorCode: string; $selected: boolean }>`
   }
 `;
 
-const StockList = styled.div`
+const SelectedColorList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
 `;
 
-const StockRow = styled.div`
+const SelectedColorRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
 `;
 
-const StockColor = styled.span`
+const SelectedColorLabel = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1205,13 +1110,6 @@ const Dot = styled.span`
   height: 14px;
   border-radius: 50%;
   border: 1px solid #ddd;
-`;
-
-const StockInput = styled.input`
-  width: 90px;
-  padding: 6px 8px;
-  border: 1px solid #d9d9d9;
-  font-size: 13px;
 `;
 
 const SubmitButton = styled.button`
