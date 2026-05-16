@@ -536,7 +536,7 @@ const ProductUpload = () => {
     productOptions.forEach((option) => {
       colorIdSet.add(option.colorId);
     });
-    const productColors = Array.from(colorIdSet).map((colorId) => ({ colorId }));
+    const productColors = Array.from(colorIdSet).map((colorId) => ({ colorId, stock: 0 }));
 
     setSubmitting(true);
     try {

@@ -58,6 +58,9 @@ const pool = mysql.createPool({
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  connectTimeout: 10000,
 });
 
 // 3. CORS 설정 (배열/콤마 구분, http/https 변형 허용)
