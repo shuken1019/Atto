@@ -524,6 +524,7 @@ const ProductUpload = () => {
         colorId,
         sizeId,
         additionalPrice: 0,
+        stock: 0,
       }));
     });
 
