@@ -79,6 +79,7 @@ const Login: React.FC = () => {
           role,
         }),
       );
+      localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
       window.dispatchEvent(new Event('auth-changed'));
       navigate(role === 'ADMIN' ? '/admin' : '/');
     } catch {
@@ -171,6 +172,7 @@ const Login: React.FC = () => {
             provider: 'kakao',
           }),
         );
+        localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
         window.dispatchEvent(new Event('auth-changed'));
         navigate(role === 'ADMIN' ? '/admin' : '/');
       } catch {
@@ -242,6 +244,7 @@ const Login: React.FC = () => {
             provider: 'kakao',
           }),
         );
+        localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
         window.dispatchEvent(new Event('auth-changed'));
         alert('카카오 로그인에 성공했습니다.');
         navigate(role === 'ADMIN' ? '/admin' : '/');

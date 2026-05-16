@@ -38,6 +38,22 @@ import CheckoutPreview from './pages/CheckoutPreview';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+const isSessionValid = (): boolean => {
+  const expiry = Number(localStorage.getItem('atto_session_expiry') ?? 0);
+  if (expiry > 0) return Date.now() < expiry;
+  // 기존 로그인 유지 (만료시간 없으면 유효한 것으로 처리, 다음 로그인부터 적용)
+  return true;
+};
+
+const clearSession = () => {
+  localStorage.removeItem('attoUser');
+  localStorage.removeItem('atto_auth');
+  localStorage.removeItem('atto_session_expiry');
+  window.dispatchEvent(new Event('auth-changed'));
+};
+
 const isAdminUser = () => {
   const rawAuth = localStorage.getItem('atto_auth');
   const rawUser = localStorage.getItem('attoUser');
@@ -46,7 +62,7 @@ const isAdminUser = () => {
     const parsedAuth = rawAuth ? (JSON.parse(rawAuth) as { role?: string }) : null;
     const parsedUser = rawUser ? (JSON.parse(rawUser) as { role?: string }) : null;
     const role = String(parsedAuth?.role ?? parsedUser?.role ?? '').toUpperCase();
-    return role === 'ADMIN';
+    return role === 'ADMIN' && isSessionValid();
   } catch {
     return false;
   }
@@ -61,7 +77,8 @@ const isLoggedInUser = () => {
     const parsedUser = rawUser ? (JSON.parse(rawUser) as { userId?: number | string }) : null;
     const authUserId = Number(parsedAuth?.userId ?? 0);
     const userUserId = Number(parsedUser?.userId ?? 0);
-    return Number.isFinite(authUserId) && authUserId > 0 || Number.isFinite(userUserId) && userUserId > 0;
+    const hasUser = (Number.isFinite(authUserId) && authUserId > 0) || (Number.isFinite(userUserId) && userUserId > 0);
+    return hasUser && isSessionValid();
   } catch {
     return false;
   }
@@ -96,6 +113,26 @@ const GlobalStyle = createGlobalStyle`
   h1, h2, h3, h4, h5, h6 { font-family: 'Playfair Display', serif; font-weight: 400; }
   a { text-decoration: none; color: inherit; }
 `;
+
+const SessionWatcher: React.FC = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const check = () => {
+      const hasSession = localStorage.getItem('atto_auth');
+      if (hasSession && !isSessionValid()) {
+        clearSession();
+        navigate('/login', { replace: true });
+      }
+    };
+
+    check();
+    const id = setInterval(check, 60_000);
+    return () => clearInterval(id);
+  }, [navigate]);
+
+  return null;
+};
 
 const ShareEntryRedirect: React.FC = () => {
   const location = useLocation();
@@ -140,6 +177,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <GlobalStyle />
+      <SessionWatcher />
       <ShareEntryRedirect />
       <Layout>
         <Routes>
