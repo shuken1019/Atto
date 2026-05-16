@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
+import { showAlert } from '../components/common/appDialog';
 
 declare global {
   interface Window {
@@ -81,6 +82,7 @@ const Login: React.FC = () => {
       );
       localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
       window.dispatchEvent(new Event('auth-changed'));
+      showAlert('로그인됐습니다.');
       navigate(role === 'ADMIN' ? '/admin' : '/');
     } catch {
       alert('서버 연결에 실패했습니다.');
@@ -174,6 +176,7 @@ const Login: React.FC = () => {
         );
         localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
         window.dispatchEvent(new Event('auth-changed'));
+        showAlert('로그인됐습니다.');
         navigate(role === 'ADMIN' ? '/admin' : '/');
       } catch {
         alert('카카오 로그인 처리 중 네트워크 오류가 발생했습니다.');
@@ -246,7 +249,7 @@ const Login: React.FC = () => {
         );
         localStorage.setItem('atto_session_expiry', String(Date.now() + 2 * 60 * 60 * 1000));
         window.dispatchEvent(new Event('auth-changed'));
-        alert('카카오 로그인에 성공했습니다.');
+        showAlert('로그인됐습니다.');
         navigate(role === 'ADMIN' ? '/admin' : '/');
       } catch {
         alert('카카오 로그인 API 호출에 실패했습니다.');

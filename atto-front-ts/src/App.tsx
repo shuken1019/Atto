@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { createGlobalStyle } from 'styled-components';
 import Layout from './components/layout/Layout';
+import { showAlert } from './components/common/appDialog';
 
 // 페이지 컴포넌트 임포트
 import Home from './pages/Home';
@@ -122,6 +123,7 @@ const SessionWatcher: React.FC = () => {
       const hasSession = localStorage.getItem('atto_auth');
       if (hasSession && !isSessionValid()) {
         clearSession();
+        showAlert('세션이 만료되어 로그아웃됐습니다.');
         navigate('/login', { replace: true });
       }
     };

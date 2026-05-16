@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { API_BASE_URL } from '../../config/api';
+import { showAlert } from '../common/appDialog';
 
 const CartIcon = () => (
   <svg width="20" height="22" viewBox="0 0 20 22" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -88,7 +89,9 @@ const Header: React.FC = () => {
     }
     localStorage.removeItem('atto_auth');
     localStorage.removeItem('attoUser');
+    localStorage.removeItem('atto_session_expiry');
     window.dispatchEvent(new Event('auth-changed'));
+    showAlert('로그아웃됐습니다.');
     navigate('/');
   };
 
